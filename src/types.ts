@@ -8,6 +8,7 @@ export interface MenuItem {
   pricePerPerson: number
   category: string
   items: string[]
+  active?: boolean
 }
 
 export interface ServiceItem {
@@ -55,6 +56,9 @@ export interface BuffetEvent {
   shareToken?: string
   shareUrl?: string
   sharedAt?: string
+  quoteToken?: string
+  quoteUrl?: string
+  quoteSharedAt?: string
 }
 
 export interface BusinessSettings {

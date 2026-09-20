@@ -10,6 +10,7 @@ import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from '.
 import { useLocalStorage, uid } from './storage'
 import type { BuffetEvent, BusinessSettings, MenuItem, Section, ServiceItem } from './types'
 import { contractSequence, dateBR, eventTotal, money, phoneDigits, shortDate, statusClass } from './utils'
+import { brandMark } from './brand'
 import './styles.css'
 
 const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
@@ -36,6 +37,17 @@ interface RemoteContract {
   signature?: NonNullable<BuffetEvent['signature']> | null
 }
 
+interface RemoteQuote {
+  token: string
+  createdAt: string
+  expiresAt: string
+  event: BuffetEvent
+  menu: MenuItem | null
+  services: ServiceItem[]
+  settings: BusinessSettings
+  total: number
+}
+
 function AdminApp() {
   const [section, setSection] = useState<Section>('dashboard')
   const [events, setEvents] = useLocalStorage<BuffetEvent[]>('maison-events', defaultEvents)
@@ -45,9 +57,11 @@ function AdminApp() {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
   const [activeContractId, setActiveContractId] = useState<string | null>(null)
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
 
   const activeContract = events.find((item) => item.id === activeContractId)
+  const activeQuote = events.find((item) => item.id === activeQuoteId)
 
   useEffect(() => {
     const syncPendingContracts = async () => {
@@ -111,7 +125,7 @@ function AdminApp() {
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
           )}
           {section === 'events' && (
-            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onOpenContract={setActiveContractId} onDelete={deleteEvent} />
+            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
           )}
           {section === 'menus' && (
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
@@ -135,6 +149,17 @@ function AdminApp() {
           setMenuEditorOpen(false)
           notify('Novo cardápio adicionado.')
         }} />
+      )}
+      {activeQuote && (
+        <QuoteModal
+          event={activeQuote}
+          menus={menus}
+          services={services}
+          settings={settings}
+          onClose={() => setActiveQuoteId(null)}
+          onUpdate={(patch) => updateEvent(activeQuote.id, patch)}
+          notify={notify}
+        />
       )}
       {activeContract && (
         <ContractModal
@@ -162,7 +187,7 @@ function Sidebar({ section, onNavigate, onNewEvent, settings }: {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">M</div>
+        <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
         <div><strong>{settings.businessName}</strong><span>Eventos & contratos</span></div>
       </div>
       <button className="new-event-button" onClick={onNewEvent}><Plus size={18} /> Novo evento</button>
@@ -228,6 +253,15 @@ function Dashboard({ events, menus, services, onNavigate, onOpenContract }: {
   const confirmed = events.filter((item) => item.status === 'Confirmado')
   const signed = events.filter((item) => item.contractStatus === 'Assinado')
   const revenue = confirmed.reduce((sum, event) => sum + eventTotal(event, menus, services), 0)
+  const proposals = events.filter((item) => item.status === 'Proposta')
+  const proposalValue = proposals.reduce((sum, event) => sum + eventTotal(event, menus, services), 0)
+  const pipelineValue = events.reduce((sum, event) => sum + eventTotal(event, menus, services), 0)
+  const deposits = events.reduce((sum, event) => sum + (event.deposit || 0), 0)
+  const receivable = confirmed.reduce((sum, event) => sum + Math.max(0, eventTotal(event, menus, services) - (event.deposit || 0)), 0)
+  const averageTicket = confirmed.length ? revenue / confirmed.length : 0
+  const conversion = events.length ? Math.round((signed.length / events.length) * 100) : 0
+  const confirmedGuests = confirmed.reduce((sum, event) => sum + event.guests, 0)
+  const averagePerGuest = confirmedGuests ? revenue / confirmedGuests : 0
   const guests = upcoming.reduce((sum, event) => sum + event.guests, 0)
   const bars = useMemo(() => {
     const values = Array.from({ length: 6 }, (_, offset) => {
@@ -258,8 +292,12 @@ function Dashboard({ events, menus, services, onNavigate, onOpenContract }: {
 
       <div className="metric-grid">
         <Metric icon={CircleDollarSign} label="Receita confirmada" value={money(revenue)} note={confirmed.length + ' eventos confirmados'} />
+        <Metric icon={WalletCards} label="Pipeline de propostas" value={money(proposalValue)} note={proposals.length + ' propostas em aberto'} />
+        <Metric icon={CheckCircle2} label="Sinais registrados" value={money(deposits)} note="valores já registrados" />
+        <Metric icon={CircleDollarSign} label="Saldo a receber" value={money(receivable)} note="dos eventos confirmados" />
+        <Metric icon={WalletCards} label="Ticket médio" value={money(averageTicket)} note="por evento confirmado" />
         <Metric icon={CalendarDays} label="Próximos eventos" value={String(upcoming.length).padStart(2, '0')} note="na agenda atual" />
-        <Metric icon={ClipboardSignature} label="Contratos assinados" value={String(signed.length).padStart(2, '0')} note={events.length ? Math.round((signed.length / events.length) * 100) + '% do total' : '0% do total'} />
+        <Metric icon={ClipboardSignature} label="Conversão em assinatura" value={conversion + '%'} note={signed.length + ' contratos assinados'} />
         <Metric icon={Users} label="Convidados previstos" value={guests.toLocaleString('pt-BR')} note="nos próximos eventos" />
       </div>
 
@@ -289,6 +327,38 @@ function Dashboard({ events, menus, services, onNavigate, onOpenContract }: {
           </div>
         </section>
       </div>
+
+      <div className="financial-grid">
+        <section className="panel financial-panel">
+          <div className="panel-head"><div><span className="eyebrow">FINANCEIRO</span><h3>Composição da carteira</h3></div><span className="muted">{money(pipelineValue)} em negócios</span></div>
+          <div className="financial-lines">
+            {[
+              ['Confirmado', revenue, pipelineValue ? revenue / pipelineValue : 0],
+              ['Em proposta', proposalValue, pipelineValue ? proposalValue / pipelineValue : 0],
+              ['Sinais registrados', deposits, pipelineValue ? deposits / pipelineValue : 0],
+              ['A receber', receivable, revenue ? receivable / revenue : 0]
+            ].map(([label, value, ratio]) => (
+              <div className="financial-line" key={String(label)}>
+                <div><span>{label}</span><strong>{money(Number(value))}</strong></div>
+                <div className="finance-track"><i style={{ width: Math.max(3, Math.min(100, Number(ratio) * 100)) + '%' }} /></div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="panel commercial-health">
+          <div className="panel-head"><div><span className="eyebrow">SAÚDE COMERCIAL</span><h3>Conversão e valor</h3></div></div>
+          <div className="health-content">
+            <div className="conversion-ring" style={{ background: 'conic-gradient(#9a7440 ' + conversion + '%, #e9e5dc ' + conversion + '%)' }}>
+              <div><strong>{conversion}%</strong><span>assinados</span></div>
+            </div>
+            <div className="health-stats">
+              <div><span>Ticket médio</span><strong>{money(averageTicket)}</strong></div>
+              <div><span>Receita por convidado</span><strong>{money(averagePerGuest)}</strong></div>
+              <div><span>Eventos em proposta</span><strong>{proposals.length}</strong></div>
+            </div>
+          </div>
+        </section>
+      </div>
     </>
   )
 }
@@ -304,12 +374,13 @@ function Metric({ icon: Icon, label, value, note }: { icon: typeof Users; label:
   )
 }
 
-function EventsView({ events, menus, services, onNew, onOpenContract, onDelete }: {
+function EventsView({ events, menus, services, onNew, onOpenContract, onOpenQuote, onDelete }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onNew: () => void
   onOpenContract: (id: string) => void
+  onOpenQuote: (id: string) => void
   onDelete: (id: string) => void
 }) {
   const [query, setQuery] = useState('')
@@ -337,7 +408,7 @@ function EventsView({ events, menus, services, onNew, onOpenContract, onDelete }
                 <td>{event.guests}</td>
                 <td><strong>{money(eventTotal(event, menus, services))}</strong></td>
                 <td><span className={statusClass(event.contractStatus)}>{event.contractStatus}</span></td>
-                <td><div className="row-actions"><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
+                <td><div className="row-actions"><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
               </tr>
             ))}
           </tbody>
@@ -357,29 +428,51 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
   notify: (message: string) => void
 }) {
   const [tab, setTab] = useState<'menus' | 'services'>('menus')
+  const [editingMenu, setEditingMenu] = useState<MenuItem | null>(null)
+  const activeCount = menus.filter((menu) => menu.active !== false).length
+
   const deleteMenu = (id: string) => {
-    if (!window.confirm('Excluir este cardápio?')) return
+    if (!window.confirm('Excluir este cardápio permanentemente?')) return
     setMenus((current) => current.filter((item) => item.id !== id))
     notify('Cardápio removido.')
+  }
+
+  const toggleMenu = (menu: MenuItem) => {
+    const active = menu.active !== false
+    setMenus((current) => current.map((item) => item.id === menu.id ? { ...item, active: !active } : item))
+    notify(active ? 'Cardápio desativado.' : 'Cardápio ativado.')
   }
 
   return (
     <>
       <div className="section-intro">
-        <div><span className="eyebrow">CATÁLOGO</span><h2>Sua oferta, organizada.</h2><p>Monte combinações que possam ser selecionadas rapidamente durante o fechamento.</p></div>
+        <div><span className="eyebrow">CATÁLOGO</span><h2>Sua oferta, organizada.</h2><p>{activeCount} cardápios ativos para novas propostas. Edite preços e itens sem perder o histórico dos eventos.</p></div>
         {tab === 'menus' && <button className="btn btn-primary" onClick={onNewMenu}><Plus size={17} /> Novo cardápio</button>}
       </div>
       <div className="tabs"><button className={tab === 'menus' ? 'active' : ''} onClick={() => setTab('menus')}>Cardápios <span>{menus.length}</span></button><button className={tab === 'services' ? 'active' : ''} onClick={() => setTab('services')}>Serviços adicionais <span>{services.length}</span></button></div>
       {tab === 'menus' ? (
         <div className="menu-grid">
-          {menus.map((menu, index) => (
-            <article className="menu-card" key={menu.id}>
-              <div className="menu-card-top"><span className="menu-number">{String(index + 1).padStart(2, '0')}</span><span className="pill">{menu.category}</span></div>
-              <h3>{menu.name}</h3><p>{menu.description}</p>
-              <div className="menu-items">{menu.items.slice(0, 5).map((item) => <span key={item}><Check size={13} />{item}</span>)}</div>
-              <div className="menu-card-foot"><div><span>A partir de</span><strong>{money(menu.pricePerPerson)} <small>/ pessoa</small></strong></div><button className="icon-button danger" onClick={() => deleteMenu(menu.id)}><Trash2 size={17} /></button></div>
-            </article>
-          ))}
+          {menus.map((menu, index) => {
+            const active = menu.active !== false
+            return (
+              <article className={active ? 'menu-card' : 'menu-card inactive'} key={menu.id}>
+                <div className="menu-card-top">
+                  <span className="menu-number">{String(index + 1).padStart(2, '0')}</span>
+                  <div className="menu-card-badges"><span className={active ? 'status status--success' : 'status status--neutral'}>{active ? 'Ativo' : 'Inativo'}</span><span className="pill">{menu.category}</span></div>
+                </div>
+                <h3>{menu.name}</h3><p>{menu.description}</p>
+                <div className="menu-items">{menu.items.slice(0, 6).map((item) => <span key={item}><Check size={13} />{item}</span>)}</div>
+                <div className="menu-card-foot">
+                  <div><span>Valor por pessoa</span><strong>{money(menu.pricePerPerson)} <small>/ pessoa</small></strong></div>
+                  <div className="menu-actions">
+                    <button title="Editar" onClick={() => setEditingMenu(menu)}><PenLine size={16} /></button>
+                    <button title={active ? 'Desativar' : 'Ativar'} onClick={() => toggleMenu(menu)}>{active ? <X size={16} /> : <CheckCircle2 size={16} />}</button>
+                    <button className="danger" title="Remover" onClick={() => deleteMenu(menu.id)}><Trash2 size={16} /></button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
         </div>
       ) : (
         <div className="service-list">
@@ -392,6 +485,17 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
             </div>
           ))}
         </div>
+      )}
+      {editingMenu && (
+        <MenuEditor
+          initial={editingMenu}
+          onClose={() => setEditingMenu(null)}
+          onSave={(updated) => {
+            setMenus((current) => current.map((item) => item.id === updated.id ? updated : item))
+            setEditingMenu(null)
+            notify('Cardápio atualizado.')
+          }}
+        />
       )}
     </>
   )
@@ -508,7 +612,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     endTime: '23:00',
     venue: '',
     guests: 50,
-    menuId: menus[0]?.id || '',
+    menuId: menus.find((menu) => menu.active !== false)?.id || menus[0]?.id || '',
     serviceIds: [],
     notes: '',
     discount: 0,
@@ -525,7 +629,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     <div className="modal-backdrop">
       <div className="wizard">
         <div className="wizard-side">
-          <div className="brand mini"><div className="brand-mark">M</div><div><strong>Novo evento</strong><span>{form.contractNumber}</span></div></div>
+          <div className="brand mini"><img className="brand-emblem" src={brandMark} alt="Maison Buffet" /><div><strong>Novo evento</strong><span>{form.contractNumber}</span></div></div>
           <div className="step-list">
             {[['01', 'Cliente & data'], ['02', 'Cardápio'], ['03', 'Serviços & valores']].map((item, index) => (
               <div className={step === index + 1 ? 'step active' : step > index + 1 ? 'step done' : 'step'} key={item[0]}>
@@ -558,7 +662,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
             <div className="wizard-content">
               <span className="eyebrow">PASSO 2 DE 3</span><h2>Escolha a experiência.</h2><p className="lead">O valor do cardápio é multiplicado automaticamente pelo número de convidados.</p>
               <div className="wizard-menu-grid">
-                {menus.map((menu) => (
+                {menus.filter((menu) => menu.active !== false).map((menu) => (
                   <button className={form.menuId === menu.id ? 'select-menu active' : 'select-menu'} key={menu.id} onClick={() => set('menuId', menu.id)}>
                     <div className="select-check">{form.menuId === menu.id && <Check size={14} />}</div>
                     <span>{menu.category}</span><h3>{menu.name}</h3><p>{menu.description}</p>
@@ -600,17 +704,17 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
   )
 }
 
-function MenuEditor({ onClose, onSave }: { onClose: () => void; onSave: (menu: MenuItem) => void }) {
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState('Personalizado')
-  const [description, setDescription] = useState('')
-  const [price, setPrice] = useState(0)
-  const [items, setItems] = useState('')
+function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave: (menu: MenuItem) => void; initial?: MenuItem }) {
+  const [name, setName] = useState(initial?.name || '')
+  const [category, setCategory] = useState(initial?.category || 'Personalizado')
+  const [description, setDescription] = useState(initial?.description || '')
+  const [price, setPrice] = useState(initial?.pricePerPerson || 0)
+  const [items, setItems] = useState(initial?.items.join(', ') || '')
   return (
     <div className="modal-backdrop">
       <div className="simple-modal">
         <button className="modal-close" onClick={onClose}><X size={20} /></button>
-        <span className="eyebrow">NOVO ITEM DE CATÁLOGO</span><h2>Criar cardápio</h2><p className="lead">Cadastre uma opção para reutilizar em qualquer evento.</p>
+        <span className="eyebrow">{initial ? 'EDITAR CARDÁPIO' : 'NOVO ITEM DE CATÁLOGO'}</span><h2>{initial ? 'Editar cardápio' : 'Criar cardápio'}</h2><p className="lead">{initial ? 'Atualize nome, composição e valor. Eventos antigos continuam preservados.' : 'Cadastre uma opção para reutilizar em qualquer evento.'}</p>
         <div className="form-grid two">
           <Field label="Nome" value={name} onChange={setName} />
           <Field label="Categoria" value={category} onChange={setCategory} />
@@ -618,9 +722,187 @@ function MenuEditor({ onClose, onSave }: { onClose: () => void; onSave: (menu: M
           <div className="field span-2"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div className="field span-2"><label>Itens inclusos <span>— separe por vírgulas</span></label><textarea value={items} onChange={(e) => setItems(e.target.value)} /></div>
         </div>
-        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name || !price} onClick={() => onSave({ id: uid('menu'), name, category, description, pricePerPerson: price, items: items.split(',').map((item) => item.trim()).filter(Boolean) })}>Salvar cardápio</button></div>
+        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name || !price} onClick={() => onSave({ id: initial?.id || uid('menu'), name, category, description, pricePerPerson: price, items: items.split(',').map((item) => item.trim()).filter(Boolean), active: initial?.active ?? true })}>Salvar cardápio</button></div>
       </div>
     </div>
+  )
+}
+
+function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notify }: {
+  event: BuffetEvent
+  menus: MenuItem[]
+  services: ServiceItem[]
+  settings: BusinessSettings
+  onClose: () => void
+  onUpdate: (patch: Partial<BuffetEvent>) => void
+  notify: (message: string) => void
+}) {
+  const [sharing, setSharing] = useState(false)
+  const menu = menus.find((item) => item.id === event.menuId)
+  const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
+  const total = eventTotal(event, menus, services)
+
+  const createQuoteLink = async () => {
+    if (event.quoteUrl && event.quoteToken) return event.quoteUrl
+    setSharing(true)
+    try {
+      const response = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, menu, services: selectedServices, settings, total })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Não foi possível gerar o orçamento.')
+      onUpdate({ quoteToken: data.token, quoteUrl: data.url, quoteSharedAt: new Date().toISOString() })
+      notify('Orçamento online criado.')
+      return data.url as string
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Falha ao gerar orçamento.')
+      return ''
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const copyLink = async () => {
+    const url = await createQuoteLink()
+    if (!url) return
+    await navigator.clipboard.writeText(url)
+    notify('Link do orçamento copiado.')
+  }
+
+  const openQuote = async () => {
+    const popup = window.open('about:blank', '_blank')
+    const url = await createQuoteLink()
+    if (!url) {
+      popup?.close()
+      return
+    }
+    if (popup) {
+      popup.opener = null
+      popup.location.replace(url)
+    } else {
+      await navigator.clipboard.writeText(url)
+      notify('Link copiado. O navegador bloqueou a nova aba.')
+    }
+  }
+
+  const sendWhatsApp = async () => {
+    const popup = window.open('about:blank', '_blank')
+    const url = await createQuoteLink()
+    if (!url) {
+      popup?.close()
+      return
+    }
+    const text = 'Olá, ' + event.clientName + '! Preparamos seu orçamento para ' + event.eventType + '. Confira todos os detalhes aqui: ' + url
+    const phone = phoneDigits(event.clientPhone)
+    const target = phone
+      ? 'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + encodeURIComponent(text)
+      : 'https://wa.me/?text=' + encodeURIComponent(text)
+    if (popup) {
+      popup.opener = null
+      popup.location.replace(target)
+    } else {
+      await navigator.clipboard.writeText(text)
+      notify('Mensagem copiada. O navegador bloqueou a nova aba.')
+    }
+  }
+
+  return (
+    <div className="quote-overlay">
+      <div className="contract-shell">
+        <div className="contract-toolbar no-print">
+          <div><button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar</button><div><strong>ORÇAMENTO</strong><span>{event.clientName}</span></div></div>
+          <div className="contract-actions">
+            <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
+            {event.quoteUrl && <button className="btn btn-quiet" onClick={copyLink}><FileText size={17} /> Copiar link</button>}
+            <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing}><Send size={17} /> WhatsApp</button>
+            <button className="btn btn-primary" onClick={openQuote} disabled={sharing}><ArrowUpRight size={17} /> {event.quoteUrl ? 'Abrir orçamento' : 'Gerar link'}</button>
+          </div>
+        </div>
+        {event.quoteUrl && (
+          <div className="share-banner no-print">
+            <div><CheckCircle2 size={17} /><span><strong>Orçamento online disponível</strong><small>O cliente pode abrir pelo celular, imprimir ou salvar em PDF.</small></span></div>
+            <button onClick={copyLink}>Copiar link</button>
+          </div>
+        )}
+        <QuoteDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} />
+      </div>
+    </div>
+  )
+}
+
+function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
+  event: BuffetEvent
+  menu?: MenuItem
+  services: ServiceItem[]
+  settings: BusinessSettings
+  total: number
+  expiresAt?: string
+}) {
+  const menuSubtotal = (menu?.pricePerPerson || 0) * event.guests
+  const servicesSubtotal = services.reduce((sum, service) => sum + (service.pricing === 'person' ? service.price * event.guests : service.price), 0)
+  const quoteNumber = event.contractNumber.replace('CTR-', 'ORC-')
+  const expiry = expiresAt
+    ? new Date(expiresAt)
+    : (() => { const date = new Date(); date.setDate(date.getDate() + 7); return date })()
+
+  return (
+    <article className="quote-document">
+      <header className="quote-header">
+        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt="Maison Buffet" /><div><strong>{settings.businessName}</strong><span>Gastronomia & eventos</span></div></div>
+        <div className="doc-number"><span>ORÇAMENTO</span><strong>{quoteNumber}</strong></div>
+      </header>
+
+      <section className="quote-hero">
+        <div><span className="eyebrow">PROPOSTA PERSONALIZADA</span><h1>Uma experiência pensada<br />para o seu evento.</h1><p>Olá, <strong>{event.clientName}</strong>. Reunimos abaixo a composição, serviços e investimento para {event.eventType.toLowerCase()}.</p></div>
+        <div className="quote-total-highlight"><span>Investimento</span><strong>{money(total)}</strong><small>{money(total / Math.max(1, event.guests))} por convidado</small></div>
+      </section>
+
+      <section className="quote-section">
+        <div className="doc-section-head"><span>01</span><h2>Informações do evento</h2></div>
+        <div className="doc-data-grid">
+          <div><span>Evento</span><strong>{event.eventType}</strong></div>
+          <div><span>Data</span><strong>{dateBR(event.eventDate)}</strong></div>
+          <div><span>Horário</span><strong>{event.startTime} — {event.endTime}</strong></div>
+          <div><span>Convidados</span><strong>{event.guests} pessoas</strong></div>
+          <div className="wide"><span>Local</span><strong>{event.venue}</strong></div>
+        </div>
+      </section>
+
+      <section className="quote-section">
+        <div className="doc-section-head"><span>02</span><h2>Experiência gastronômica</h2></div>
+        <div className="quote-menu">
+          <div><span>{menu?.category || 'Cardápio'}</span><h3>{menu?.name || 'Cardápio a definir'}</h3><p>{menu?.description}</p></div>
+          <div><strong>{money(menu?.pricePerPerson || 0)}</strong><span>por pessoa</span></div>
+        </div>
+        <div className="doc-tags">{menu?.items.map((item) => <span key={item}>{item}</span>)}</div>
+      </section>
+
+      <section className="quote-section">
+        <div className="doc-section-head"><span>03</span><h2>Serviços e estrutura</h2></div>
+        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}</span><b>{service.pricing === 'person' ? money(service.price) + '/pessoa' : money(service.price)}</b></div>)}</div> : <p className="doc-muted">Nenhum serviço adicional incluído nesta proposta.</p>}
+      </section>
+
+      <section className="quote-section quote-finance-section">
+        <div className="doc-section-head"><span>04</span><h2>Resumo financeiro</h2></div>
+        <div className="quote-breakdown">
+          <div><span>Cardápio × {event.guests} convidados</span><strong>{money(menuSubtotal)}</strong></div>
+          <div><span>Serviços adicionais</span><strong>{money(servicesSubtotal)}</strong></div>
+          {event.discount > 0 && <div className="discount"><span>Desconto comercial</span><strong>− {money(event.discount)}</strong></div>}
+          <div className="quote-grand-total"><span>Valor total da proposta</span><strong>{money(total)}</strong></div>
+        </div>
+        <p className="doc-clause"><strong>Condições de pagamento.</strong> {settings.paymentTerms}</p>
+        {event.notes && <p className="doc-clause"><strong>Observações.</strong> {event.notes}</p>}
+      </section>
+
+      <section className="quote-validity">
+        <CalendarCheck size={18} /><div><span>VALIDADE DA PROPOSTA</span><strong>Até {expiry.toLocaleDateString('pt-BR')}</strong></div>
+        <p>Valores e disponibilidade de agenda estão sujeitos à confirmação após esta data.</p>
+      </section>
+
+      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}</span><span>{quoteNumber}</span></footer>
+    </article>
   )
 }
 
@@ -771,7 +1053,7 @@ function ContractDocument({ event, menu, services, settings, total }: {
   return (
     <article className="contract-document">
       <header className="doc-header">
-        <div className="doc-brand"><div className="brand-mark">M</div><div><strong>{settings.businessName}</strong><span>Gastronomia & eventos</span></div></div>
+        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt="Maison Buffet" /><div><strong>{settings.businessName}</strong><span>Gastronomia & eventos</span></div></div>
         <div className="doc-number"><span>CONTRATO</span><strong>{event.contractNumber}</strong></div>
       </header>
       <div className="doc-title"><span>PRESTAÇÃO DE SERVIÇOS</span><h1>Contrato de Buffet<br />e Produção de Evento</h1><p>Documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')} para o evento descrito abaixo.</p></div>
@@ -961,7 +1243,7 @@ function PublicSigningPage({ token }: { token: string }) {
   }
 
   if (loading) {
-    return <div className="public-state"><div className="public-state-card"><div className="brand-mark dark">M</div><strong>Carregando contrato...</strong><span>Estamos buscando a versão segura do documento.</span></div></div>
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Maison Buffet" /><strong>Carregando contrato...</strong><span>Estamos buscando a versão segura do documento.</span></div></div>
   }
 
   if (error || !contract) {
@@ -978,7 +1260,7 @@ function PublicSigningPage({ token }: { token: string }) {
     <div className="public-contract-page">
       <header className="public-contract-header no-print">
         <div className="public-brand">
-          <div className="brand-mark">M</div>
+          <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
           <div><strong>{contract.settings.businessName}</strong><span>Documento para assinatura</span></div>
         </div>
         <div className="public-header-actions">
@@ -1013,9 +1295,71 @@ function PublicSigningPage({ token }: { token: string }) {
   )
 }
 
+function PublicQuotePage({ token }: { token: string }) {
+  const [quote, setQuote] = useState<RemoteQuote | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadQuote = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/quotes?token=' + encodeURIComponent(token), { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Orçamento não encontrado.')
+      setQuote(data.quote)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar o orçamento.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadQuote()
+  }, [token])
+
+  if (loading) {
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Maison Buffet" /><strong>Carregando orçamento...</strong><span>Estamos preparando a sua proposta.</span></div></div>
+  }
+
+  if (error || !quote) {
+    return <div className="public-state"><div className="public-state-card"><WalletCards size={34} /><strong>Não foi possível abrir este orçamento</strong><span>{error || 'O link pode estar incorreto.'}</span><button className="btn btn-quiet" onClick={loadQuote}>Tentar novamente</button></div></div>
+  }
+
+  const expired = new Date(quote.expiresAt).getTime() < Date.now()
+  const phone = phoneDigits(quote.settings.phone)
+  const whatsappText = encodeURIComponent('Olá! Gostaria de conversar sobre o orçamento ' + quote.event.contractNumber.replace('CTR-', 'ORC-') + ' para ' + quote.event.eventType + '.')
+
+  return (
+    <div className="public-quote-page">
+      <header className="public-contract-header no-print">
+        <div className="public-brand">
+          <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
+          <div><strong>{quote.settings.businessName}</strong><span>Proposta comercial</span></div>
+        </div>
+        <div className="public-header-actions">
+          <span className={expired ? 'status status--neutral' : 'status status--success'}>{expired ? 'Validade encerrada' : 'Proposta válida'}</span>
+          <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={16} /> Salvar PDF</button>
+        </div>
+      </header>
+
+      <div className="quote-public-intro no-print">
+        <div><span className="eyebrow">PROPOSTA EXCLUSIVA</span><strong>Olá, {quote.event.clientName}.</strong><p>Confira abaixo todos os detalhes preparados para seu evento. Você pode salvar esta proposta em PDF ou falar diretamente com o buffet.</p></div>
+        <a className="btn btn-primary" href={'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + whatsappText} target="_blank" rel="noreferrer"><Send size={16} /> Falar com o buffet</a>
+      </div>
+
+      <QuoteDocument event={quote.event} menu={quote.menu || undefined} services={quote.services} settings={quote.settings} total={quote.total} expiresAt={quote.expiresAt} />
+    </div>
+  )
+}
+
 function App() {
-  const match = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
-  return match ? <PublicSigningPage token={match[1]} /> : <AdminApp />
+  const signingMatch = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
+  const quoteMatch = window.location.pathname.match(/^\/orcamento\/([^/]+)$/)
+  if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
+  if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
+  return <AdminApp />
 }
 
 function Field({ label, value, onChange, type = 'text', placeholder = '', prefix = '' }: {

@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/assinar/:token", "destination": "/index.html" }
+    { "source": "/assinar/:token", "destination": "/index.html" },
+    { "source": "/orcamento/:token", "destination": "/index.html" }
   ]
 }

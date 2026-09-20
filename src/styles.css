@@ -15,6 +15,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .sidebar{position:fixed;inset:0 auto 0 0;width:248px;background:var(--ink);color:#fff;padding:28px 20px 22px;display:flex;flex-direction:column;z-index:30}
 .brand{display:flex;align-items:center;gap:12px;padding:0 8px 26px}
 .brand-mark{width:38px;height:38px;border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;font-family:Georgia,serif;font-size:21px}
+.brand-emblem{width:48px;height:48px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 5px 9px rgba(0,0,0,.2))}
+.brand.mini .brand-emblem{width:44px;height:44px}
+.brand-emblem--doc{width:42px;height:42px;filter:none}
+.brand-emblem--state{width:78px;height:78px;filter:drop-shadow(0 8px 14px rgba(24,33,27,.12))}
 .brand div:last-child{display:flex;flex-direction:column;min-width:0}
 .brand strong{font-family:Georgia,serif;font-size:16px;font-weight:500;letter-spacing:.02em}
 .brand span{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.53);margin-top:3px}
@@ -107,8 +111,14 @@ td strong{font-size:11px}
 .tabs button.active{color:var(--ink);border-color:var(--ink);font-weight:700}
 .tabs span{font-size:9px;background:#e7e4dc;padding:2px 5px;border-radius:99px;margin-left:4px}
 .menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.menu-card{background:var(--paper);border:1px solid var(--line);padding:22px;min-height:310px;display:flex;flex-direction:column}
+.menu-card{background:var(--paper);border:1px solid var(--line);padding:22px;min-height:310px;display:flex;flex-direction:column;transition:.2s ease}
+.menu-card.inactive{opacity:.62;background:#f0eee8;filter:saturate(.55)}
 .menu-card-top{display:flex;justify-content:space-between;align-items:center}
+.menu-card-badges{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.menu-actions{display:flex;gap:5px;align-items:center}
+.menu-actions button{width:32px;height:32px;border:1px solid var(--line);background:transparent;color:#687168;display:grid;place-items:center}
+.menu-actions button:hover{border-color:#9ba49c;color:var(--ink);background:#f5f3ed}
+.menu-actions button.danger:hover{border-color:#d8bcbc;color:var(--danger);background:#fbf1f1}
 .menu-number{font-family:Georgia,serif;font-size:18px;color:#aaa394}
 .pill{font-size:8px;text-transform:uppercase;letter-spacing:.1em;background:#eeece6;padding:5px 7px}
 .menu-card h3{font-family:Georgia,serif;font-weight:400;font-size:23px;margin:24px 0 7px}
@@ -267,10 +277,37 @@ td strong{font-size:11px}
 .public-sign-sticky{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(760px,calc(100% - 28px));background:var(--ink);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:18px;z-index:45;box-shadow:0 14px 35px rgba(15,22,18,.25)}
 .public-sign-sticky>div{display:flex;flex-direction:column}.public-sign-sticky strong{font-size:10px}.public-sign-sticky span{font-size:8px;color:rgba(255,255,255,.55);margin-top:3px}.public-sign-sticky .btn-primary{background:#f1ece1;color:var(--ink);border-color:#f1ece1}
 .public-state{min-height:100vh;display:grid;place-items:center;background:#e9e7e1;padding:20px}.public-state-card{width:min(420px,100%);background:var(--paper);border:1px solid var(--line);padding:40px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px}.public-state-card .brand-mark.dark{border-color:#9da69f;color:var(--ink)}.public-state-card strong{font-family:Georgia,serif;font-size:22px;font-weight:400;margin-top:8px}.public-state-card span{font-size:10px;color:#7e847e;line-height:1.5}.public-state-card .btn{margin-top:10px}
+.financial-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}
+.financial-panel,.commercial-health{min-height:300px}
+.financial-lines{padding:4px 24px 24px;display:flex;flex-direction:column;gap:18px}
+.financial-line>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}
+.financial-line span{font-size:10px;color:#737a73}.financial-line strong{font-family:Georgia,serif;font-size:15px;font-weight:400}
+.finance-track{height:7px;background:#ebe8e1;overflow:hidden}.finance-track i{display:block;height:100%;background:linear-gradient(90deg,#847054,#c6a670);min-width:3px}
+.health-content{padding:10px 24px 26px;display:flex;align-items:center;gap:30px}
+.conversion-ring{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.conversion-ring>div{width:112px;height:112px;border-radius:50%;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.conversion-ring strong{font-family:Georgia,serif;font-size:29px;font-weight:400}.conversion-ring span{font-size:9px;color:#7e847e;text-transform:uppercase;letter-spacing:.08em}
+.health-stats{flex:1;display:grid;gap:13px}.health-stats>div{border-bottom:1px solid var(--line);padding-bottom:11px;display:flex;flex-direction:column}
+.health-stats span{font-size:9px;color:#838983;text-transform:uppercase;letter-spacing:.07em}.health-stats strong{font-family:Georgia,serif;font-size:18px;font-weight:400;margin-top:4px}
+.quote-overlay{position:fixed;inset:0;background:#e9e7e1;z-index:91;overflow:auto}
+.quote-document{width:min(850px,calc(100% - 36px));margin:32px auto 70px;background:#fff;padding:54px 60px;box-shadow:0 10px 35px rgba(25,30,26,.09);color:#202720}
+.quote-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d9d6ce;padding-bottom:22px}
+.quote-hero{display:grid;grid-template-columns:1.45fr .55fr;gap:34px;align-items:end;padding:44px 0 34px}
+.quote-hero h1{font-family:Georgia,serif;font-size:35px;line-height:1.05;font-weight:400;letter-spacing:-.025em;margin:8px 0 12px}
+.quote-hero p{font-size:10px;color:#747b74;line-height:1.65;margin:0}.quote-total-highlight{background:#19231d;color:#fff;padding:20px;display:flex;flex-direction:column}
+.quote-total-highlight span,.quote-total-highlight small{font-size:8px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.08em}.quote-total-highlight strong{font-family:Georgia,serif;font-size:25px;font-weight:400;margin:6px 0}
+.quote-section{padding:28px 0;border-top:1px solid #dfddd6}.quote-menu{display:flex;justify-content:space-between;gap:22px;align-items:flex-start}
+.quote-menu>div:first-child>span{font-size:8px;text-transform:uppercase;color:#858b85}.quote-menu h3{font-family:Georgia,serif;font-size:22px;font-weight:400;margin:5px 0}.quote-menu p{font-size:9px;color:#7e847e;line-height:1.55;max-width:500px}
+.quote-menu>div:last-child{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}.quote-menu>div:last-child strong{font-family:Georgia,serif;font-size:19px;font-weight:400}.quote-menu>div:last-child span{font-size:8px;color:#858b85}
+.quote-breakdown{border:1px solid #dedbd3;margin-bottom:18px}.quote-breakdown>div{display:flex;justify-content:space-between;gap:20px;padding:10px 12px;border-bottom:1px solid #ebe8e2;font-size:9px}.quote-breakdown>div:last-child{border:0}
+.quote-breakdown .discount strong{color:#6d7d6f}.quote-grand-total{background:#f1eee7;padding:14px 12px!important}.quote-grand-total span{font-weight:700}.quote-grand-total strong{font-family:Georgia,serif;font-size:20px;font-weight:400}
+.quote-validity{margin:28px 0;display:grid;grid-template-columns:22px auto 1fr;gap:10px;align-items:center;background:#f5f2eb;padding:14px}.quote-validity>div{display:flex;flex-direction:column}.quote-validity span{font-size:7px;letter-spacing:.1em;color:#858b85}.quote-validity strong{font-size:10px;margin-top:3px}.quote-validity p{font-size:8px;color:#777e77;text-align:right;margin:0}
+.public-quote-page{min-height:100vh;background:#e9e7e1;padding-bottom:30px}.quote-public-intro{width:min(850px,calc(100% - 36px));margin:22px auto -12px;padding:18px 20px;background:#f8f5ee;border:1px solid #d7d3ca;display:flex;justify-content:space-between;align-items:center;gap:18px}
+.quote-public-intro>div{display:flex;flex-direction:column;align-items:flex-start}.quote-public-intro strong{font-family:Georgia,serif;font-size:19px;font-weight:400;margin:4px 0}.quote-public-intro p{font-size:9px;color:#737973;line-height:1.5;margin:0;max-width:540px}.quote-public-intro a{text-decoration:none;white-space:nowrap}
 .mobile-nav{display:none}
 @media(max-width:1100px){
   .metric-grid{grid-template-columns:repeat(2,1fr)}
-  .dashboard-grid{grid-template-columns:1fr}
+  .dashboard-grid,.financial-grid{grid-template-columns:1fr}
   .menu-grid{grid-template-columns:repeat(2,1fr)}
   .global-search{display:none}
 }
@@ -278,7 +315,8 @@ td strong{font-size:11px}
   .sidebar{display:none}.main{margin-left:0;padding-bottom:66px}.topbar{height:68px;padding:0 18px}.topbar h1{font-size:16px}.desktop-only{display:none}
   .page{padding:18px 14px 28px}.hero{min-height:300px;padding:28px 22px;align-items:flex-start;flex-direction:column}.hero:after{font-size:200px;right:-20px;top:-60px}
   .hero h2{font-size:37px}.hero-date{width:100%;margin-top:24px}.metric-grid{grid-template-columns:1fr 1fr}.metric-card{padding:16px;min-height:135px}.metric-card>strong{font-size:22px}
-  .dashboard-grid{gap:12px}.panel-head{padding:18px}.next-event{grid-template-columns:42px 1fr}.next-event>.status{display:none}.bar-chart{height:210px;padding:18px 16px}
+  .dashboard-grid,.financial-grid{gap:12px}.panel-head{padding:18px}.next-event{grid-template-columns:42px 1fr}.next-event>.status{display:none}.bar-chart{height:210px;padding:18px 16px}
+  .health-content{padding:8px 18px 20px;gap:18px}.conversion-ring{width:124px;height:124px}.conversion-ring>div{width:92px;height:92px}.conversion-ring strong{font-size:24px}
   .section-intro,.panel-toolbar{align-items:flex-start;flex-direction:column}.panel-toolbar{padding:18px}.section-intro h2,.panel-toolbar h2{font-size:26px}
   .filters{padding:12px}.menu-grid{grid-template-columns:1fr}.service-row{grid-template-columns:36px 1fr 32px}.service-price{display:none}
   .contract-card{grid-template-columns:38px 1fr 20px}.contract-value{display:none}.calendar-panel{padding:12px}.calendar-head{align-items:flex-start;gap:10px;flex-direction:column}.calendar-day{min-height:76px;padding:4px}.calendar-event{padding:4px}.calendar-event strong{display:none}
@@ -289,15 +327,68 @@ td strong{font-size:11px}
   .wizard{width:100%;height:100%;max-height:none;grid-template-columns:1fr}.modal-backdrop{padding:0}.wizard-side{display:none}.wizard-main{min-height:100vh;max-height:none}.wizard-content{padding:54px 18px 20px}.wizard-content h2{font-size:28px}.wizard-actions{padding:12px 18px;position:sticky;bottom:0}
   .wizard-menu-grid{grid-template-columns:1fr}.simple-modal,.signature-modal{width:100%;max-height:100vh;min-height:100vh;padding:54px 18px 30px}
   .contract-toolbar{height:auto;padding:12px;align-items:flex-start;gap:8px;flex-direction:column;position:sticky}.contract-actions{width:100%;overflow:auto}.contract-actions .btn{white-space:nowrap;flex:1}
-  .contract-document{width:calc(100% - 16px);margin:10px auto 35px;padding:30px 20px}.doc-title{padding:30px 0 24px}.doc-title h1{font-size:30px}.doc-party-grid{grid-template-columns:1fr}.doc-data-grid{grid-template-columns:1fr 1fr}.doc-data-grid .wide{grid-column:span 2}
+  .contract-document,.quote-document{width:calc(100% - 16px);margin:10px auto 35px;padding:30px 20px}.doc-title{padding:30px 0 24px}.doc-title h1{font-size:30px}.doc-party-grid{grid-template-columns:1fr}.doc-data-grid{grid-template-columns:1fr 1fr}.doc-data-grid .wide{grid-column:span 2}
+  .quote-hero{grid-template-columns:1fr;gap:18px;padding:28px 0}.quote-hero h1{font-size:29px}.quote-menu{flex-direction:column}.quote-menu>div:last-child{align-items:flex-start}.quote-validity{grid-template-columns:22px 1fr}.quote-validity p{grid-column:1 / -1;text-align:left}.quote-public-intro{width:calc(100% - 16px);margin:10px auto -2px;padding:15px;align-items:flex-start;flex-direction:column}.quote-public-intro .btn{width:100%}
+  .brand-emblem{width:42px;height:42px}
   .doc-financial{grid-template-columns:1fr}.doc-financial>div{border-right:0;border-bottom:1px solid #dedbd3}.doc-signatures{grid-template-columns:1fr;gap:28px}.toast{right:14px;left:14px;bottom:76px}
   .share-banner{width:calc(100% - 16px);margin:10px auto -2px;align-items:flex-start}.share-banner small{line-height:1.4}
   .public-contract-header{padding:10px 12px;gap:10px;align-items:flex-start}.public-brand .brand-mark{width:34px;height:34px}.public-header-actions{margin-left:auto}.public-header-actions .status{display:none}.public-header-actions .btn{height:34px;padding:0 9px;font-size:9px}
   .signing-intro,.signed-success{width:calc(100% - 16px);margin:10px auto -2px;padding:15px;align-items:flex-start;flex-direction:column}.signing-intro .btn{width:100%}
   .public-contract-page{padding-bottom:96px}.public-sign-sticky{bottom:8px;width:calc(100% - 16px);padding:10px;gap:10px}.public-sign-sticky span{display:none}.public-sign-sticky .btn{white-space:nowrap}
 }
+@page{size:A4;margin:7mm 9mm}
 @media print{
-  body{background:#fff}.main,.no-print,.sidebar,.topbar,.mobile-nav,.toast{display:none!important}
-  .contract-overlay{position:static;overflow:visible;background:#fff}.public-contract-page{padding:0;background:#fff}.contract-document{width:100%;max-width:none;margin:0;padding:20mm 17mm;box-shadow:none}
-  .doc-title h1{font-size:29pt}.doc-section,.audit-evidence{break-inside:avoid}.signature-backdrop{display:none!important}
+  html,body{background:#fff!important}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .main,.no-print,.sidebar,.topbar,.mobile-nav,.toast{display:none!important}
+  .contract-overlay,.quote-overlay{position:static!important;inset:auto!important;overflow:visible!important;background:#fff!important}
+  .public-contract-page,.public-quote-page{padding:0!important;background:#fff!important}
+  .contract-document,.quote-document{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;box-shadow:none!important;border:0!important}
+  .quote-document{font-size:8pt}
+  .contract-document{font-size:7.5pt}
+  .contract-document .doc-header{padding-bottom:2.5mm}
+  .contract-document .doc-title{padding:2.3mm 0 1.5mm}
+  .contract-document .doc-title h1{font-size:16.5pt;margin:.7mm 0}
+  .contract-document .doc-title p{font-size:7pt;line-height:1.3;margin:0}
+  .contract-document .doc-party-grid{padding:2.2mm;gap:3mm}
+  .contract-document .doc-party-grid strong{margin:1mm 0}
+  .contract-document .doc-party-grid p{font-size:6.8pt;line-height:1.35}
+  .contract-document .doc-section{padding:2mm 0!important}
+  .contract-document .doc-section-head{margin-bottom:1.5mm}
+  .contract-document .doc-data-grid{gap:2mm}
+  .contract-document .doc-data-grid span{font-size:6.5pt}.contract-document .doc-data-grid strong{font-size:7.5pt;margin-top:.5mm}
+  .contract-document .doc-menu h3{font-size:13pt;margin:.5mm 0}.contract-document .doc-menu p{font-size:6.8pt;line-height:1.3;margin:0}
+  .contract-document .doc-menu>strong{font-size:12pt}
+  .contract-document .doc-tags{margin-top:1mm}.contract-document .doc-tags span{font-size:6.4pt;padding:.8mm 1.3mm}
+  .contract-document .doc-service-list>div{padding:1mm 0}.contract-document .doc-service-list span{font-size:6.5pt;line-height:1.25}.contract-document .doc-service-list span strong,.contract-document .doc-service-list b{font-size:7pt}
+  .contract-document .doc-financial{margin-bottom:1.5mm}.contract-document .doc-financial>div{padding:1.8mm}.contract-document .doc-financial span{font-size:6.3pt}.contract-document .doc-financial strong{font-size:11pt}
+  .contract-document .doc-clause{font-size:6.6pt;line-height:1.25;margin:1mm 0}
+  .contract-document .doc-signatures{padding:2mm 0 1mm;gap:8mm}
+  .contract-document .signature-box{min-height:12mm}.contract-document .signature-line,.contract-document .signature-box img{height:6mm}
+  .contract-document .doc-footer{font-size:5.5pt;padding-top:1mm}
+  .contract-document .signature-box strong{font-size:6.8pt;margin-top:1mm}.contract-document .signature-box small{font-size:5.8pt}
+  .contract-document .audit-evidence{margin:1mm 0 2mm;padding:1.8mm}.contract-document .audit-evidence p{margin:1mm 0}.contract-document .audit-evidence span{font-size:5.5pt}
+  .doc-header,.quote-header{padding-bottom:3mm}
+  .doc-title{padding:4.5mm 0 3mm}.doc-title h1{font-size:20pt;margin:1.5mm 0}
+  .doc-party-grid{padding:3mm;gap:4mm}
+  .doc-section{padding:3.5mm 0!important;break-inside:auto!important}
+  .quote-section{padding:2.7mm 0!important;break-inside:auto!important}
+  .doc-section-head{margin-bottom:3mm}.doc-menu h3,.quote-menu h3{margin:1mm 0}
+  .doc-tags{margin-top:2mm}.doc-tags span{padding:1.3mm 2mm}
+  .doc-service-list>div{padding:2mm 0}
+  .doc-financial{margin-bottom:3mm}.doc-financial>div{padding:2.5mm}
+  .doc-signatures{padding:5mm 0 3mm;gap:10mm}
+  .signature-box{min-height:21mm}.signature-line,.signature-box img{height:11mm}
+  .audit-evidence{margin:1.5mm 0 3mm;padding:2.5mm}
+  .quote-hero{padding:3.5mm 0 2.5mm;gap:6mm}.quote-hero h1{font-size:18pt;margin:1mm 0}.quote-hero p{line-height:1.35}.quote-total-highlight{padding:3mm}
+  .quote-total-highlight strong{font-size:19pt}.quote-section .doc-section-head{margin-bottom:2mm}
+  .quote-menu h3{font-size:15pt}.quote-menu p{line-height:1.35;margin:1mm 0}.quote-document .doc-tags{margin-top:1.5mm}
+  .quote-document .doc-tags span{font-size:6.8pt;padding:1mm 1.5mm}
+  .quote-document .doc-service-list>div{padding:1.3mm 0}
+  .quote-breakdown{margin-bottom:2mm}.quote-breakdown>div{padding:1.5mm 2.5mm}.quote-grand-total{padding:2.2mm!important}
+  .quote-document .doc-clause{font-size:7.2pt;line-height:1.3;margin:1.5mm 0}
+  .quote-validity{margin:2.5mm 0;padding:2mm}
+  .doc-party-grid,.doc-menu,.quote-menu,.doc-financial,.doc-service-list>div,.doc-signatures,.audit-evidence,.quote-breakdown,.quote-validity{break-inside:avoid!important}
+  p,li{orphans:3;widows:3}
+  .signature-backdrop{display:none!important}
 }
