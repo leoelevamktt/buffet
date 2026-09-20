@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardSignature, FileSignature,
   LayoutDashboard, Menu as MenuIcon, Plus, Search, Settings, Sparkles, Users,
@@ -23,7 +23,20 @@ const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 
 const eventTypes = ['Casamento', 'Aniversário', 'Corporativo', 'Confraternização', 'Formatura', 'Outro']
 
-function App() {
+interface RemoteContract {
+  token: string
+  status: 'pending' | 'signed'
+  createdAt: string
+  signedAt?: string
+  event: BuffetEvent
+  menu: MenuItem | null
+  services: ServiceItem[]
+  settings: BusinessSettings
+  total: number
+  signature?: NonNullable<BuffetEvent['signature']> | null
+}
+
+function AdminApp() {
   const [section, setSection] = useState<Section>('dashboard')
   const [events, setEvents] = useLocalStorage<BuffetEvent[]>('maison-events', defaultEvents)
   const [menus, setMenus] = useLocalStorage<MenuItem[]>('maison-menus', defaultMenus)
@@ -35,6 +48,36 @@ function App() {
   const [toast, setToast] = useState('')
 
   const activeContract = events.find((item) => item.id === activeContractId)
+
+  useEffect(() => {
+    const syncPendingContracts = async () => {
+      const pending = events.filter((item) => item.shareToken && item.contractStatus !== 'Assinado')
+      if (!pending.length) return
+
+      const results = await Promise.all(pending.map(async (item) => {
+        try {
+          const response = await fetch('/api/contracts?token=' + encodeURIComponent(item.shareToken!), { cache: 'no-store' })
+          if (!response.ok) return null
+          const data = await response.json()
+          return data.contract?.status === 'signed' ? { id: item.id, signature: data.contract.signature } : null
+        } catch {
+          return null
+        }
+      }))
+
+      const signed = results.filter(Boolean) as { id: string; signature: NonNullable<BuffetEvent['signature']> }[]
+      if (!signed.length) return
+
+      setEvents((current) => current.map((item) => {
+        const remote = signed.find((result) => result.id === item.id)
+        return remote ? { ...item, signature: remote.signature, contractStatus: 'Assinado' as const, status: 'Confirmado' as const } : item
+      }))
+    }
+
+    void syncPendingContracts()
+    const timer = window.setInterval(() => void syncPendingContracts(), 30000)
+    return () => window.clearInterval(timer)
+  }, [events, setEvents])
 
   const notify = (message: string) => {
     setToast(message)
@@ -590,17 +633,107 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
   onUpdate: (patch: Partial<BuffetEvent>) => void
   notify: (message: string) => void
 }) {
-  const [signing, setSigning] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
   const total = eventTotal(event, menus, services)
 
-  const shareWhatsApp = () => {
-    onUpdate({ contractStatus: event.contractStatus === 'Assinado' ? 'Assinado' : 'Enviado' })
-    const text = 'Olá, ' + event.clientName + '! Segue o contrato ' + event.contractNumber + ' referente ao evento de ' + dateBR(event.eventDate) + '. Valor total: ' + money(total) + '.'
+  const syncRemote = async (silent = false) => {
+    if (!event.shareToken) return
+    if (!silent) setSyncing(true)
+    try {
+      const response = await fetch('/api/contracts?token=' + encodeURIComponent(event.shareToken), { cache: 'no-store' })
+      if (!response.ok) return
+      const data = await response.json()
+      const remote = data.contract
+      if (remote?.status === 'signed' && remote.signature) {
+        onUpdate({ signature: remote.signature, contractStatus: 'Assinado', status: 'Confirmado' })
+        if (!silent) notify('Assinatura do cliente sincronizada.')
+      }
+    } finally {
+      if (!silent) setSyncing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!event.shareToken || event.contractStatus === 'Assinado') return
+    void syncRemote(true)
+    const timer = window.setInterval(() => void syncRemote(true), 10000)
+    return () => window.clearInterval(timer)
+  }, [event.shareToken, event.contractStatus])
+
+  const createSigningLink = async () => {
+    if (event.contractStatus === 'Assinado') return event.shareUrl || ''
+    if (event.shareUrl && event.shareToken) return event.shareUrl
+
+    setSharing(true)
+    try {
+      const response = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, menu, services: selectedServices, settings, total })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Não foi possível criar o link.')
+
+      const patch = {
+        contractStatus: 'Enviado' as const,
+        shareToken: data.token as string,
+        shareUrl: data.url as string,
+        sharedAt: new Date().toISOString()
+      }
+      onUpdate(patch)
+      notify('Link seguro de assinatura criado.')
+      return data.url as string
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Falha ao criar link de assinatura.')
+      return ''
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const copySigningLink = async () => {
+    const url = await createSigningLink()
+    if (!url) return
+    await navigator.clipboard.writeText(url)
+    notify('Link de assinatura copiado.')
+  }
+
+  const sendWhatsApp = async () => {
+    const popup = window.open('about:blank', '_blank')
+    const url = await createSigningLink()
+    if (!url) {
+      popup?.close()
+      return
+    }
+    const text = 'Olá, ' + event.clientName + '! Seu contrato ' + event.contractNumber + ' está disponível para leitura e assinatura eletrônica: ' + url
     const phone = phoneDigits(event.clientPhone)
-    window.open('https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + encodeURIComponent(text), '_blank')
-    notify('Contrato marcado como enviado.')
+    const target = phone ? 'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + encodeURIComponent(text) : 'https://wa.me/?text=' + encodeURIComponent(text)
+    if (popup) {
+      popup.opener = null
+      popup.location.replace(target)
+    } else {
+      await navigator.clipboard.writeText(text)
+      notify('Mensagem copiada. O navegador bloqueou a nova aba.')
+    }
+  }
+
+  const openSigning = async () => {
+    const popup = window.open('about:blank', '_blank')
+    const url = await createSigningLink()
+    if (!url) {
+      popup?.close()
+      return
+    }
+    if (popup) {
+      popup.opener = null
+      popup.location.replace(url)
+    } else {
+      await navigator.clipboard.writeText(url)
+      notify('Link copiado. O navegador bloqueou a nova aba.')
+    }
   }
 
   return (
@@ -610,13 +743,20 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
           <div><button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar</button><div><strong>{event.contractNumber}</strong><span>{event.clientName}</span></div></div>
           <div className="contract-actions">
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
-            <button className="btn btn-quiet" onClick={shareWhatsApp}><Send size={17} /> Enviar</button>
-            <button className="btn btn-primary" onClick={() => setSigning(true)} disabled={event.contractStatus === 'Assinado'}><PenLine size={17} /> {event.contractStatus === 'Assinado' ? 'Assinado' : 'Assinar'}</button>
+            {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
+            <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing || event.contractStatus === 'Assinado'}><Send size={17} /> {sharing ? 'Gerando...' : 'WhatsApp'}</button>
+            {event.shareToken && event.contractStatus !== 'Assinado' && <button className="btn btn-quiet" onClick={() => syncRemote(false)} disabled={syncing}><CheckCircle2 size={17} /> {syncing ? 'Verificando...' : 'Verificar'}</button>}
+            <button className="btn btn-primary" onClick={openSigning} disabled={sharing || event.contractStatus === 'Assinado'}><PenLine size={17} /> {event.contractStatus === 'Assinado' ? 'Assinado' : event.shareUrl ? 'Abrir assinatura' : 'Gerar link'}</button>
           </div>
         </div>
+        {event.shareUrl && event.contractStatus !== 'Assinado' && (
+          <div className="share-banner no-print">
+            <div><CheckCircle2 size={17} /><span><strong>Contrato disponível para assinatura</strong><small>Envie o link ao cliente. O painel verifica automaticamente quando ele assinar.</small></span></div>
+            <button onClick={copySigningLink}>Copiar link</button>
+          </div>
+        )}
         <ContractDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} />
       </div>
-      {signing && <SignatureModal event={event} onClose={() => setSigning(false)} onSign={(signature) => { onUpdate({ signature, contractStatus: 'Assinado', status: 'Confirmado' }); setSigning(false); notify('Contrato assinado com sucesso.') }} />}
     </div>
   )
 }
@@ -676,6 +816,13 @@ function ContractDocument({ event, menu, services, settings, total }: {
         <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
         <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientDocument}</small></div>
       </section>
+      {event.signature?.auditHash && (
+        <section className="audit-evidence">
+          <div><CheckCircle2 size={16} /><strong>Registro eletrônico de assinatura</strong></div>
+          <p>Assinado em {new Date(event.signature.signedAt).toLocaleString('pt-BR')} por {event.signature.signerName}.</p>
+          <span>SHA-256: {event.signature.auditHash}</span>
+        </section>
+      )}
       <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}</span><span>{event.contractNumber}</span></footer>
     </article>
   )
@@ -684,12 +831,15 @@ function ContractDocument({ event, menu, services, settings, total }: {
 function SignatureModal({ event, onClose, onSign }: {
   event: BuffetEvent
   onClose: () => void
-  onSign: (signature: NonNullable<BuffetEvent['signature']>) => void
+  onSign: (signature: NonNullable<BuffetEvent['signature']>) => Promise<void> | void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [name, setName] = useState(event.clientName)
   const [document, setDocument] = useState(event.clientDocument)
   const [accepted, setAccepted] = useState(false)
+  const [hasDrawn, setHasDrawn] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
   const drawing = useRef(false)
 
   const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -699,36 +849,173 @@ function SignatureModal({ event, onClose, onSign }: {
     return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) }
   }
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const p = point(e); const ctx = canvasRef.current?.getContext('2d'); if (!p || !ctx) return
-    drawing.current = true; ctx.beginPath(); ctx.moveTo(p.x, p.y)
+    const p = point(e)
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!p || !ctx) return
+    drawing.current = true
+    setHasDrawn(true)
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
   }
   const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawing.current) return
-    const p = point(e); const ctx = canvasRef.current?.getContext('2d'); if (!p || !ctx) return
-    ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#17211b'; ctx.lineTo(p.x, p.y); ctx.stroke()
+    const p = point(e)
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!p || !ctx) return
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = '#17211b'
+    ctx.lineTo(p.x, p.y)
+    ctx.stroke()
   }
   const stop = () => { drawing.current = false }
   const clear = () => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasDrawn(false)
+    setError('')
+  }
+  const submit = async () => {
+    if (!accepted || !name.trim() || !document.trim() || !hasDrawn || !canvasRef.current) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await onSign({
+        signerName: name.trim(),
+        signerDocument: document.trim(),
+        dataUrl: canvasRef.current.toDataURL('image/png'),
+        signedAt: new Date().toISOString(),
+        accepted: true
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível concluir a assinatura.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <div className="signature-backdrop">
       <div className="signature-modal">
-        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <button className="modal-close" onClick={onClose} disabled={submitting}><X size={20} /></button>
         <div className="signature-icon"><PenLine size={22} /></div>
-        <span className="eyebrow">ASSINATURA ELETRÔNICA</span><h2>Confirme o aceite.</h2><p className="lead">Revise seus dados e assine no campo abaixo. A assinatura ficará vinculada a este contrato neste dispositivo.</p>
-        <div className="form-grid two"><Field label="Nome completo" value={name} onChange={setName} /><Field label="CPF / CNPJ" value={document} onChange={setDocument} /></div>
-        <div className="signature-pad-head"><label>Assinatura</label><button onClick={clear}>Limpar</button></div>
-        <canvas ref={canvasRef} width={800} height={220} className="signature-pad" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerLeave={stop} />
-        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /><span>Declaro que li e aceito os termos deste contrato e reconheço esta assinatura eletrônica.</span></label>
-        <button className="btn btn-primary full" disabled={!accepted || !name} onClick={() => onSign({ signerName: name, signerDocument: document, dataUrl: canvasRef.current?.toDataURL('image/png'), signedAt: new Date().toISOString() })}><ClipboardSignature size={17} /> Confirmar assinatura</button>
-        <small className="legal-note">Nesta fase local, a evidência fica armazenada no navegador. Uma versão com autenticação, IP, hash e trilha de auditoria pode ser conectada a um serviço de assinatura posteriormente.</small>
+        <span className="eyebrow">ASSINATURA ELETRÔNICA</span><h2>Confirme o aceite.</h2>
+        <p className="lead">Revise seus dados e desenhe sua assinatura. Ao confirmar, o sistema registra a evidência técnica deste aceite.</p>
+        <div className="form-grid two"><Field label="Nome completo *" value={name} onChange={setName} /><Field label="CPF / CNPJ *" value={document} onChange={setDocument} /></div>
+        <div className="signature-pad-head"><label>Assinatura *</label><button onClick={clear} disabled={submitting}>Limpar</button></div>
+        <canvas ref={canvasRef} width={800} height={220} className="signature-pad" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onPointerLeave={stop} />
+        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Declaro que li integralmente o contrato, concordo com seus termos e reconheço esta assinatura eletrônica como manifestação do meu aceite.</span></label>
+        {error && <div className="signature-error">{error}</div>}
+        <button className="btn btn-primary full" disabled={!accepted || !name.trim() || !document.trim() || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir contrato'}</button>
+        <small className="legal-note">O registro inclui data e hora, IP, dispositivo/navegador e hash SHA-256 do conteúdo assinado. Guarde uma cópia do contrato após a conclusão.</small>
       </div>
     </div>
   )
+}
+
+function PublicSigningPage({ token }: { token: string }) {
+  const [contract, setContract] = useState<RemoteContract | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [signing, setSigning] = useState(false)
+
+  const loadContract = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/contracts?token=' + encodeURIComponent(token), { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Contrato não encontrado.')
+      setContract(data.contract)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar o contrato.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadContract()
+  }, [token])
+
+  const signContract = async (signature: NonNullable<BuffetEvent['signature']>) => {
+    const response = await fetch('/api/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        signerName: signature.signerName,
+        signerDocument: signature.signerDocument,
+        dataUrl: signature.dataUrl,
+        accepted: true
+      })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Não foi possível registrar a assinatura.')
+    setContract(data.contract)
+    setSigning(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (loading) {
+    return <div className="public-state"><div className="public-state-card"><div className="brand-mark dark">M</div><strong>Carregando contrato...</strong><span>Estamos buscando a versão segura do documento.</span></div></div>
+  }
+
+  if (error || !contract) {
+    return <div className="public-state"><div className="public-state-card"><FileSignature size={34} /><strong>Não foi possível abrir este contrato</strong><span>{error || 'O link pode ter expirado ou estar incorreto.'}</span><button className="btn btn-quiet" onClick={loadContract}>Tentar novamente</button></div></div>
+  }
+
+  const signedEvent: BuffetEvent = {
+    ...contract.event,
+    signature: contract.signature || contract.event.signature
+  }
+  const isSigned = contract.status === 'signed' && Boolean(contract.signature)
+
+  return (
+    <div className="public-contract-page">
+      <header className="public-contract-header no-print">
+        <div className="public-brand">
+          <div className="brand-mark">M</div>
+          <div><strong>{contract.settings.businessName}</strong><span>Documento para assinatura</span></div>
+        </div>
+        <div className="public-header-actions">
+          <span className={isSigned ? 'status status--success' : 'status status--info'}>{isSigned ? 'Assinado' : 'Aguardando assinatura'}</span>
+          <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={16} /> Imprimir / PDF</button>
+        </div>
+      </header>
+
+      {isSigned ? (
+        <div className="signed-success no-print">
+          <CheckCircle2 size={22} />
+          <div><strong>Contrato assinado com sucesso</strong><span>Uma cópia pode ser salva usando “Imprimir / PDF”. O documento abaixo já contém a evidência da assinatura.</span></div>
+        </div>
+      ) : (
+        <div className="signing-intro no-print">
+          <div><span className="eyebrow">ASSINATURA DIGITAL</span><strong>Olá, {contract.event.clientName}.</strong><p>Leia o contrato completo. Quando estiver de acordo, use o botão abaixo para assinar eletronicamente.</p></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><PenLine size={17} /> Revisar e assinar</button>
+        </div>
+      )}
+
+      <ContractDocument event={signedEvent} menu={contract.menu || undefined} services={contract.services} settings={contract.settings} total={contract.total} />
+
+      {!isSigned && (
+        <div className="public-sign-sticky no-print">
+          <div><strong>Pronto para concluir?</strong><span>Sua assinatura será vinculada a esta versão do contrato.</span></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><ClipboardSignature size={17} /> Assinar contrato</button>
+        </div>
+      )}
+
+      {signing && <SignatureModal event={contract.event} onClose={() => setSigning(false)} onSign={signContract} />}
+    </div>
+  )
+}
+
+function App() {
+  const match = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
+  return match ? <PublicSigningPage token={match[1]} /> : <AdminApp />
 }
 
 function Field({ label, value, onChange, type = 'text', placeholder = '', prefix = '' }: {

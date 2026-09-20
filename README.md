@@ -25,3 +25,17 @@ npm run dev
 npm run build
 
 A assinatura desta versão é armazenada localmente no navegador. Para operação jurídica em produção, a próxima etapa é integrar autenticação, hash, trilha de auditoria e um provedor especializado de assinatura.
+
+
+## Assinatura eletrônica compartilhável
+
+- Cada contrato pode gerar um link público exclusivo e não previsível
+- O cliente abre o contrato em celular ou desktop sem acessar o painel administrativo
+- O aceite exige nome, documento, checkbox de concordância e assinatura desenhada
+- A assinatura é persistida em Vercel Blob privado
+- O registro armazena data/hora, IP, navegador/dispositivo e hash SHA-256
+- O painel sincroniza automaticamente o status do contrato
+- Uma segunda assinatura do mesmo contrato é bloqueada
+- O contrato assinado pode ser impresso ou salvo em PDF pelo navegador
+
+Observação: este fluxo implementa assinatura eletrônica com evidências técnicas. Ele não equivale automaticamente a uma assinatura qualificada com certificado ICP-Brasil.

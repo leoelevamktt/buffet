@@ -23,6 +23,11 @@ export interface Signature {
   signerDocument: string
   dataUrl?: string
   signedAt: string
+  auditHash?: string
+  ip?: string
+  userAgent?: string
+  method?: string
+  accepted?: boolean
 }
 
 export interface BuffetEvent {
@@ -47,6 +52,9 @@ export interface BuffetEvent {
   contractStatus: ContractStatus
   createdAt: string
   signature?: Signature
+  shareToken?: string
+  shareUrl?: string
+  sharedAt?: string
 }
 
 export interface BusinessSettings {
