@@ -465,8 +465,9 @@ td strong{font-size:11px}
   .contract-document .doc-service-list>div{padding:1mm 0}.contract-document .doc-service-list span{font-size:6.5pt;line-height:1.25}.contract-document .doc-service-list span strong,.contract-document .doc-service-list b{font-size:7pt}
   .contract-document .doc-financial{margin-bottom:1.5mm}.contract-document .doc-financial>div{padding:1.8mm}.contract-document .doc-financial span{font-size:6.3pt}.contract-document .doc-financial strong{font-size:11pt}
   .contract-document .doc-clause{font-size:6.6pt;line-height:1.25;margin:1mm 0}
-  .contract-document .doc-signatures{padding:2mm 0 1mm;gap:8mm}
-  .contract-document .signature-box{min-height:12mm}.contract-document .signature-line,.contract-document .signature-box img{height:6mm}
+  .contract-document .doc-signatures{padding:1.4mm 0 .7mm;gap:8mm}
+  .contract-document .signature-box{min-height:10mm}.contract-document .signature-line,.contract-document .signature-box img{height:5mm}
+  .contract-document .contract-location-date{margin-top:1.5mm;font-size:6pt}
   .contract-document .doc-footer{font-size:5.5pt;padding-top:1mm}
   .contract-document .signature-box strong{font-size:6.8pt;margin-top:1mm}.contract-document .signature-box small{font-size:5.8pt}
   .contract-document .audit-evidence{margin:1mm 0 2mm;padding:1.8mm}.contract-document .audit-evidence p{margin:1mm 0}.contract-document .audit-evidence span{font-size:5.5pt}
@@ -502,15 +503,15 @@ td strong{font-size:11px}
   .contract-document .doc-material-note{font-size:6.1pt;margin:1mm 0 0;padding:1.3mm 1.6mm}
   .contract-document .doc-package-excluded,.contract-document .doc-material-ops,.contract-document .doc-material-contacts,.contract-document .doc-payment-details{margin-top:1.5mm;padding:1.6mm}
   .contract-document .doc-package-excluded>div{gap:.8mm 3mm;margin-top:1mm}
-  .contract-document .doc-package-excluded p,.contract-document .doc-material-ops p,.contract-document .doc-material-contacts p{font-size:6.1pt;line-height:1.28;margin:.8mm 0 0}
+  .contract-document .doc-package-excluded p,.contract-document .doc-material-ops p,.contract-document .doc-material-contacts p{font-size:5.9pt;line-height:1.22;margin:.6mm 0 0}
   .contract-document .doc-payment-summary{gap:1.3mm}.contract-document .doc-payment-summary>div{padding:1.5mm}
-  .contract-document .doc-payment-table{margin-top:1.3mm}.contract-document .doc-payment-table-head span,.contract-document .doc-payment-table-row>*{padding:1.2mm 1.5mm}
-  .contract-document .doc-payment-table-head,.contract-document .doc-payment-table-row{font-size:6pt}
+  .contract-document .doc-payment-table{margin-top:1mm}.contract-document .doc-payment-table-head span,.contract-document .doc-payment-table-row>*{padding:.65mm 1.2mm}
+  .contract-document .doc-payment-table-head,.contract-document .doc-payment-table-row{font-size:5.8pt}
   .contract-document .doc-payment-note{margin-top:1.2mm;padding:1.4mm}
   .quote-document .doc-package-excluded,.quote-document .doc-material-ops,.quote-document .doc-material-contacts,.quote-document .doc-payment-details{break-inside:avoid}
   .contract-document .contract-clauses{break-before:auto!important}
   .contract-document .clause-list{columns:1;column-gap:0}
-  .contract-document .clause-list p{font-size:6.2pt;line-height:1.32;margin:0 0 1.4mm;text-align:justify;break-inside:auto}
+  .contract-document .clause-list p{font-size:6pt;line-height:1.25;margin:0 0 .7mm;text-align:justify;break-inside:auto}
   .contract-document .operational-notes{padding:1.8mm;margin-top:2mm}
   .contract-document .operational-notes p{font-size:6.1pt;line-height:1.3;margin:1mm 0 0}
   .doc-section-head{break-after:avoid-page!important;page-break-after:avoid!important}
