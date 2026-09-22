@@ -1,0 +1,29 @@
+{
+  "files": {
+    "cardapio-infinity-akela-2027.docx": {
+      "bytes": 1825538,
+      "sha256": "89f363e01a5916d3ec3024848586328998ff6450d5e7373e88392d7c317cc590"
+    },
+    "cardapio-prata-2027.docx": {
+      "bytes": 1825072,
+      "sha256": "4f6aaf2f08928677d747839e104a41ce89e358d2963c54abc01145338126b588"
+    },
+    "cardapio-bronze.docx": {
+      "bytes": 99268,
+      "sha256": "3325dc33c36070d942ac462557f6afceb9b107accd010d6cf16977cb6fcf5c67"
+    },
+    "cardapio-churrasco-2027.docx": {
+      "bytes": 1825100,
+      "sha256": "1e01af417c890d233e663fe115112b1058f79c983025bd0c72d3b664578391a5"
+    },
+    "cardapio-boteco-2027.docx": {
+      "bytes": 98476,
+      "sha256": "319f2467af4b4ed52d99c81a0c5cd12af75645bf4f953d78365fdf76741db858"
+    },
+    "contrato-locacao-espaco-2027.docx": {
+      "bytes": 1821675,
+      "sha256": "e58da6ea5e15f0ac2f790268a8fada31b866f4435a27679845f19a7cd2a91b03"
+    }
+  },
+  "coverageChecks": 53
+}

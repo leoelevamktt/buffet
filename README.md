@@ -1,56 +1,99 @@
-# Maison — Gestão de Buffet e Contratos
+# Buffet Akela — Gestão de Eventos, Orçamentos e Contratos
 
-Plataforma web mobile-first para operação comercial de buffet e eventos.
+Plataforma web responsiva para operação comercial do Buffet Akela, com gestão de eventos, cardápios, orçamentos, contratos e assinatura eletrônica.
 
-## Recursos
-- Dashboard com receita, eventos, contratos e convidados
-- Cadastro de eventos em fluxo guiado
-- Catálogo com múltiplos cardápios e valores por pessoa
-- Serviços adicionais com preço fixo ou por convidado
-- Cálculo automático do contrato
+## Recursos principais
+
+- Dashboard financeiro e comercial
+- Cadastro guiado de eventos
+- Cardápios oficiais Akela estruturados
+- Escolhas específicas por cardápio: pratos, massas, molhos, doces, refrigerantes e perfil alimentar, conforme o material de origem
+- Campo de bolo e observações específicas
+- Inclusos, não inclusos, regras operacionais, contatos e instruções de entrega por material
+- Modalidade de locação do espaço
+- Valores por pessoa ou valor fixo de locação
+- Cinco linhas de pagamento/cheques quando previstas no documento
+- Forma de pagamento, PIX e instruções de comprovantes conforme cada modelo
+- Orçamento online compartilhável
+- Contrato online compartilhável
+- Assinatura eletrônica com evidências técnicas
+- Impressão e PDF
 - Agenda mensal
-- Geração visual de contrato
-- Impressão / salvar como PDF pelo navegador
-- Envio do resumo por WhatsApp
-- Assinatura eletrônica desenhada em canvas
-- Configurações da empresa e cláusulas padrão
-- Persistência inicial em localStorage
+- Gestão de cardápios com edição, ativação, desativação e remoção
+- Persistência administrativa inicial em localStorage
+- Persistência de documentos compartilhados em Vercel Blob privado
 - Layout responsivo para desktop e celular
 
+## Assinatura eletrônica
+
+Cada contrato pode gerar um link público exclusivo. O cliente lê o documento e registra seu aceite. O registro compartilhado armazena:
+
+- versão congelada do evento
+- cardápio e escolhas
+- modelo contratual utilizado
+- transcrição integral do material-fonte usado no modelo
+- data e hora
+- IP
+- user-agent
+- assinatura desenhada
+- hash SHA-256
+
+Uma segunda assinatura do mesmo documento é bloqueada. O contrato assinado pode ser impresso ou salvo em PDF.
+
+Este fluxo implementa assinatura eletrônica com evidências técnicas. Não equivale automaticamente a uma assinatura qualificada ICP-Brasil.
+
+## Materiais oficiais Buffet Akela
+
+Os seis arquivos originais recebidos estão preservados em `materials/originals/`:
+
+- `cardapio-infinity-akela-2027.docx`
+- `cardapio-prata-2027.docx`
+- `cardapio-bronze.docx`
+- `cardapio-churrasco-2027.docx`
+- `cardapio-boteco-2027.docx`
+- `contrato-locacao-espaco-2027.docx`
+
+Além do original, a plataforma mantém três representações:
+
+1. **Original DOCX** — cópia exata do arquivo recebido.
+2. **Dados estruturados** — campos utilizáveis em evento, orçamento e contrato.
+3. **Transcrição integral** — extraída diretamente do XML interno de cada DOCX e exibida em Configurações > Materiais Oficiais.
+
+O script `scripts/extract-materials.ps1` regenera `src/sourceMaterials.ts` diretamente dos DOCX.
+
+O script `scripts/audit-materials.mjs` verifica a presença dos seis originais, calcula SHA-256 e executa verificações de cobertura sobre os pontos críticos dos materiais. O resultado também é registrado em `materials/manifest.json`.
+
+Para auditar:
+
+```bash
+npm run materials:audit
+```
+
+## Fidelidade documental
+
+Os modelos foram separados por arquivo de origem para não misturar regras:
+
+- Infinity Akela 2027
+- Prata 2027
+- Bronze / Unidade II
+- Churrasco 2027 / Unidade II
+- Boteco 2027
+- Locação do Espaço 2027
+
+Quando o documento original contém informações aparentemente contraditórias, a plataforma preserva as duas informações e sinaliza a origem, em vez de decidir silenciosamente qual delas prevalece.
+
+Os preços em branco nos documentos de origem continuam sendo definidos no momento da contratação.
+
 ## Desenvolvimento
+
+```bash
 npm install
 npm run dev
+```
 
 ## Produção
+
+```bash
+npm run materials:audit
 npm run build
-
-A assinatura desta versão é armazenada localmente no navegador. Para operação jurídica em produção, a próxima etapa é integrar autenticação, hash, trilha de auditoria e um provedor especializado de assinatura.
-
-
-## Assinatura eletrônica compartilhável
-
-- Cada contrato pode gerar um link público exclusivo e não previsível
-- O cliente abre o contrato em celular ou desktop sem acessar o painel administrativo
-- O aceite exige nome, documento, checkbox de concordância e assinatura desenhada
-- A assinatura é persistida em Vercel Blob privado
-- O registro armazena data/hora, IP, navegador/dispositivo e hash SHA-256
-- O painel sincroniza automaticamente o status do contrato
-- Uma segunda assinatura do mesmo contrato é bloqueada
-- O contrato assinado pode ser impresso ou salvo em PDF pelo navegador
-
-Observação: este fluxo implementa assinatura eletrônica com evidências técnicas. Ele não equivale automaticamente a uma assinatura qualificada com certificado ICP-Brasil.
-
-
-## Materiais oficiais Buffet Akela 2027
-
-A plataforma inclui, como dados estruturados:
-- Cardápio Infinity Akela 2027
-- Cardápio Prata 2027
-- Cardápio Bronze / Unidade II
-- Cardápio Churrasco / Unidade II
-- Cardápio Boteco 2027
-- Contrato de Prestação de Serviços Akela 2027
-- Contrato específico Bronze / Unidade II
-- Contrato de Locação do Espaço 2027
-
-Os valores de cardápio são definidos por evento quando não constam no material de origem. As escolhas do pacote (prato principal, massa, molho, doces e perfil alimentar, conforme cada cardápio) ficam registradas no evento, orçamento e contrato. O modelo contratual selecionado é congelado no registro enviado para assinatura.
+```

@@ -6,12 +6,28 @@ export interface MenuChoiceGroup {
   label: string
   options: string[]
   required?: boolean
+  multiple?: boolean
+  note?: string
 }
 
 export interface MenuSection {
   title: string
   items: string[]
   note?: string
+}
+
+export interface MaterialContact {
+  name?: string
+  phone: string
+  note?: string
+}
+
+export interface MaterialPaymentData {
+  pixLabel?: string
+  pixKey?: string
+  financialEmail?: string
+  proofWhatsapp?: string
+  proofInstructions?: string[]
 }
 
 export interface MenuItem {
@@ -27,8 +43,15 @@ export interface MenuItem {
   sections?: MenuSection[]
   includedServices?: string[]
   includedNotes?: string[]
+  excludedItems?: string[]
+  deliveryInstructions?: string[]
   choiceGroups?: MenuChoiceGroup[]
+  cakeFieldLabel?: string
   contractTemplateId?: string
+  contacts?: MaterialContact[]
+  socials?: string[]
+  website?: string
+  sourceText?: string
 }
 
 export interface ServiceItem {
@@ -37,6 +60,12 @@ export interface ServiceItem {
   description: string
   price: number
   pricing: 'fixed' | 'person'
+}
+
+export interface PaymentEntry {
+  date: string
+  checkNumber: string
+  amount: number
 }
 
 export interface ContractTemplate {
@@ -48,11 +77,19 @@ export interface ContractTemplate {
   financialEmail: string
   cancellationSummary: string
   paymentMethods: string[]
+  paymentScheduleSlots?: number
   toleranceMinutes?: number
   extraGuestPrice?: number
   overtimePenaltyPercent?: number
   clauses: string[]
   operationalNotes?: string[]
+  excludedItems?: string[]
+  deliveryInstructions?: string[]
+  contacts?: MaterialContact[]
+  socials?: string[]
+  website?: string
+  paymentData?: MaterialPaymentData
+  sourceText?: string
 }
 
 export interface Signature {
@@ -91,8 +128,11 @@ export interface BuffetEvent {
   menuId: string
   basePrice?: number
   menuPricePerPerson?: number
-  menuSelections?: Record<string, string>
+  menuSelections?: Record<string, string | string[]>
+  cakeDescription?: string
   contractTemplateId?: string
+  paymentMethod?: string
+  paymentSchedule?: PaymentEntry[]
   serviceIds: string[]
   notes: string
   discount: number

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "materials:audit": "node scripts/audit-materials.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",

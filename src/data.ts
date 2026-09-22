@@ -1,144 +1,370 @@
 import type { BuffetEvent, BusinessSettings, MenuItem, ServiceItem } from './types'
 
-const commonIncluded = [
-  'Decoração temática (consultar opções no buffet)',
-  'Convite digital',
-  'Garçons',
-  'Monitores',
-  'Gerente de evento',
-  'Copeira',
-  'Recepcionista',
-  'Vela numérica para o parabéns',
-  'Kit mamãe',
-  'Retrospectiva com 60 fotos — elaboração e projeção',
-  'Salão com ecobriza e ventiladores'
-]
-
 export const defaultMenus: MenuItem[] = [
   {
     id: 'menu-akela-infinity-2027',
     name: 'Infinity Akela 2027',
-    description: 'Cardápio completo com entradas, lanches, prato principal à escolha, salgados, bolo, doces, bebidas e café.',
+    description: 'Cardápio Infinity completo conforme o documento 2027.',
     pricePerPerson: 0,
     category: 'Infinity · 2027',
     active: true,
     sourceLabel: 'CARDAPIO INFINITY AKELA 2027.docx',
-    contractTemplateId: 'akela-services-2027',
-    items: ['Entradas e lanches', 'Prato principal — 1 opção', 'Salgados sortidos', 'Bolo com sorvete', 'Doces', 'Bebidas', 'Café'],
+    contractTemplateId: 'akela-infinity-2027',
+    cakeFieldLabel: 'Bolo (exclusivo para corte) com sorvete',
+    items: ['Entradas', 'Lanches', 'Prato principal — escolher 01 opção', 'Salgados sortidos', 'Bolo com sorvete', 'Doces', 'Bebidas', 'Café e água saborizada'],
     sections: [
-      { title: '1ª hora · Entradas', items: ['Mini pastéis sortidos', 'Mini pizza', 'Batata frita', 'Pão de queijo', 'Barqueta com maionese e caponata de berinjela', 'Pipoca'] },
-      { title: 'Lanches', items: ['Lanche de metro', 'Lanche natural', 'Mini hot dog', 'Mini buraco quente'] },
-      { title: '2ª hora · Prato principal', items: ['Escolher 1 opção entre as alternativas cadastradas no evento'] },
-      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Risoles de presunto e queijo', 'Salsicha e kibe', 'Enroladinho de salsicha', 'Esfihas de carne, frango e calabresa', 'Mini quiche de alho-poró', 'Margarida'] },
-      { title: 'Finalização', items: ['Retrospectiva e parabéns faltando 1h30 para o término', 'Bolo exclusivo para corte com sorvete', 'Doces conforme opção escolhida'] },
-      { title: 'Bebidas', items: ['Suco natural de fruta', 'Refrigerantes selecionados', 'Água com e sem gás', 'Opções zero/diet'] },
-      { title: 'Encerramento', items: ['Mesa com café simples', 'Água saborizada'] }
+      { title: '1ª hora de festa · Entradas', items: ['Mini pastéis sortidos', 'Mini pizza', 'Batata frita', 'Pão de queijo', 'Barqueta com maionese e caponata de berinjela', 'Pipoca'] },
+      { title: 'Lanches', items: ['Lanche de metro', 'Lanche Natural', 'Mini Hot Dog', 'Mini buraco quente'] },
+      { title: '2ª hora de festa · Prato principal', items: ['Escolher 01 opção no evento'] },
+      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Risoles presunto e queijo', 'Salsicha e Kibe', 'Enroladinho de salsicha', 'Esfihas de carne, frango, calabresa', 'Mini quiche de alho-poró', 'Margarida', 'Calabresa'] },
+      { title: 'Faltando 1h30 para o término', items: ['Passaremos a retrospectiva e em seguida o parabéns'] },
+      { title: '4ª hora de festa', items: ['Bolo exclusivo para corte com sorvete — descrição definida no evento', 'Doces conforme opção escolhida'] },
+      { title: 'Bebidas durante todo o evento', items: ['Suco Natural de Fruta', 'Refrigerantes conforme seleção', 'Água com e sem gás', 'Zero e Dieth'] },
+      { title: 'Encerramento', items: ['Mesa com Café simples', 'Água saborizada à disposição'] }
     ],
     choiceGroups: [
-      { id: 'main-course', label: 'Prato principal', required: true, options: ['Strogonoff de frango, batata palha, arroz e salada', 'Strogonoff de carne, batata palha, arroz e salada', 'Fricassê com arroz, saladas e massa', 'Escondidinho de carne moída com arroz, saladas e massas', 'Coxa e sobrecoxa assada com arroz, salada de maionese de batata e saladas variadas', 'Panqueca de carne e frango com arroz e saladas'] },
-      { id: 'dessert', label: 'Doces', options: ['Bar de brigadeiro branco e preto + cascata de chocolate ao leite com uva', 'Brigadeiro, beijinho, doce de leite ninho, bicho de pé e brigadeiro de milho'] },
-      { id: 'dietary', label: 'Perfil alimentar', options: ['Sem necessidade especial', 'Vegano', 'Vegetariano', 'Vegano e vegetariano'] }
+      {
+        id: 'main-course',
+        label: 'Prato principal — escolher 01 opção',
+        required: true,
+        options: [
+          'Strogonoff de Frango, Batata palha, Arroz e Salada',
+          'Strogonoff de carne, batata palha, arroz e salada',
+          'Fricassê com arroz, saladas e massa',
+          'Escondidinho de Carne Moída com arroz, saladas e massas',
+          'Coxa e sobrecoxa assada com arroz, salada de maionese de batata, saladas variadas',
+          'Panqueca Carne e frango com arroz e saladas'
+        ]
+      },
+      {
+        id: 'dessert',
+        label: 'Doces — escolher uma opção',
+        required: true,
+        options: [
+          'BAR DE BRIGADEIRO: Brigadeiro branco e preto, Cascata de chocolate ao leite com uva',
+          'Brigadeiro, Beijinho, doce de leite ninho, Bicho de pé, Brigadeiro de milho'
+        ]
+      },
+      {
+        id: 'soft-drinks',
+        label: 'Refrigerantes — marcar opções',
+        multiple: true,
+        options: ['Coca-Cola', 'Guaraná Antártica', 'Kuat ou Fanta', 'Fanta Laranja', 'Fanta Uva', 'Soda'],
+        note: 'Suco Natural de Fruta e água com e sem gás constam como bebidas durante todo o evento.'
+      },
+      {
+        id: 'dietary',
+        label: 'Na festa teremos',
+        multiple: true,
+        options: ['Vegano', 'Vegetariano']
+      }
     ],
-    includedServices: [...commonIncluded, 'Pintura nas crianças', 'Gincana', 'Porta-guardanapo', 'Arco de balões na mesa em cores primárias — orgânico, desconstruído ou tradicional'],
-    includedNotes: ['Doces personalizados da mesa de decoração não estão incluídos automaticamente.']
+    includedServices: [
+      'Decoração Temática (consultar opções no Buffet)',
+      'Convite simples Digital',
+      'Pintura nas Crianças',
+      'Gincana',
+      'Porta guardanapo',
+      'Garçons',
+      'Monitores',
+      'Gerente de evento',
+      'Copeira',
+      'Recepcionista',
+      'Vela Numérica para o Parabéns',
+      'Kit mamãe',
+      'Retrospectiva com 60 fotos — elaboração e projeção',
+      'Salão climatizado com ecobriza e Ventiladores',
+      'Arco de balões na mesa, cores primárias, podendo ser orgânico, desconstruído ou tradicional'
+    ],
+    includedNotes: [
+      'ATENÇÃO: NÃO É INCLUSO OS DOCES PERSONALIZADOS PARA A MESA DE DECORAÇÃO.',
+      'O documento possui o título “OPCIONAL:” sem itens especificados imediatamente abaixo.'
+    ],
+    contacts: [
+      { name: 'Flavio', phone: '11 96890 0572' },
+      { name: 'Flávia', phone: '11 9 8706 4006' }
+    ],
+    socials: ['@buffetakelaoficial'],
+    website: 'www.buffetakela.com.br',
+    deliveryInstructions: [
+      'Guardar e apresentar todos os comprovantes na semana do evento.',
+      'Crianças pagantes a partir dos 6 anos e 12 meses.',
+      'Fotos para retrospectiva: entregar em um pendrive ou e-mail até 15 dias antes do evento.',
+      'Doces, personalizados e destilados: entregar 1 dia antes e agendado.',
+      'Cerveja somente lata: trazer 1 dia antes.'
+    ],
+    sourceText: 'CARDAPIO INFINITY — 1ª hora: Mini pastéis sortidos, Mini pizza, Batata frita, Pão de queijo, Barqueta com maionese e caponata de berinjela, Pipoca. Lanches: Lanche de metro, Lanche Natural, Mini Hot Dog, Mini buraco quente. 2ª hora: escolher 01 opção de prato principal entre as seis alternativas cadastradas. Salgados sortidos, retrospectiva e parabéns faltando 1h30, 4ª hora com bolo exclusivo para corte com sorvete, duas opções de doces, bebidas com seleção de refrigerantes, café simples e água saborizada. Todos os inclusos, observações, contatos e instruções do rodapé estão estruturados neste cadastro.'
   },
   {
     id: 'menu-akela-prata-2027',
     name: 'Prata 2027',
-    description: 'Entradas e lanches, festival de massa com escolha de massa e molho, salgados, bolo, doces, bebidas e café.',
+    description: 'Cardápio Prata completo conforme o documento 2027.',
     pricePerPerson: 0,
     category: 'Prata · 2027',
     active: true,
     sourceLabel: 'CARDAPIO Prata 2027.docx',
-    contractTemplateId: 'akela-services-2027',
-    items: ['Entradas', 'Lanches', 'Massa e molho à escolha', 'Salgados e assados', 'Bolo com sorvete', 'Doces', 'Bebidas', 'Café'],
+    contractTemplateId: 'akela-prata-2027',
+    cakeFieldLabel: 'Bolo (exclusivo para corte) com sorvete',
+    items: ['Entradas', 'Lanches', 'Massa', 'Molho', 'Salgados sortidos', 'Assados', 'Bolo com sorvete', 'Doces', 'Bebidas', 'Café e água saborizada'],
     sections: [
-      { title: '1ª hora · Entradas', items: ['Mini pastel', 'Mini pizza', 'Batata frita', 'Pão de queijo', 'Pipoca'] },
-      { title: 'Lanches', items: ['Mini hot dog', 'Mini lanche natural', 'Lanche de metro', 'Buraco quente'] },
-      { title: '2ª hora · Prato principal', items: ['Massa e molho escolhidos para o evento'] },
-      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Salsicha', 'Kibe', 'Risoles de presunto e queijo'] },
-      { title: 'Assados', items: ['Mini bauru', 'Esfiha de carne, frango e calabresa', 'Mini quiche de alho-poró', 'Calabresa', 'Margarida'] },
-      { title: 'Finalização', items: ['Bolo exclusivo para corte com sorvete', 'Doces conforme opção escolhida'] },
-      { title: 'Bebidas e encerramento', items: ['Suco natural de fruta', 'Refrigerantes selecionados', 'Água com e sem gás', 'Opções zero/diet', 'Café', 'Água saborizada'] }
+      { title: '1ª hora de festa · Entradas', items: ['Mini Pastel', 'Mini Pizza', 'Batata Frita', 'Pão de queijo', 'Pipoca'] },
+      { title: 'Lanches', items: ['Mini hot dog', 'Mini lanche Natural', 'Lanche de metro', 'Buraco quente'] },
+      { title: '2ª hora de festa · Prato principal', items: ['Escolher uma Massa e um Molho'] },
+      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Salsicha', 'Kibe', 'Risoles presunto e queijo'] },
+      { title: 'Assados', items: ['Mini bauru', 'Esfiha de Carne', 'Esfiha de frango', 'Esfiha de calabresa', 'Mini quiche de alho-poró', 'Calabresa', 'Margarida'] },
+      { title: 'Faltando 1h30 para o término', items: ['Bolo exclusivo para corte com sorvete — descrição definida no evento'] },
+      { title: 'Bebidas durante todo o evento', items: ['Suco Natural de Fruta', 'Refrigerantes conforme seleção', 'Água com e sem gás', 'Zero e Dieth'] },
+      { title: 'Encerramento', items: ['Café', 'Água saborizada'] }
     ],
     choiceGroups: [
       { id: 'pasta', label: 'Massa', required: true, options: ['Penne', 'Spaguete', 'Farfalle', 'Fusilli'] },
       { id: 'sauce', label: 'Molho', required: true, options: ['Sugo', 'Bolonhesa', 'Parisiense', 'Calabresa', 'Tostano', 'Branco'] },
-      { id: 'dessert', label: 'Doces', options: ['Bar de brigadeiro branco e preto com confetes diversos', 'Brigadeiro, beijinho, doce de leite ninho, bicho de pé e brigadeiro de milho'] },
-      { id: 'dietary', label: 'Perfil alimentar', options: ['Sem necessidade especial', 'Vegano', 'Vegetariano', 'Vegano e vegetariano'] }
+      {
+        id: 'dessert',
+        label: 'Doces — escolher uma opção',
+        required: true,
+        options: [
+          'BAR DE BRIGADEIRO: Brigadeiro branco e preto com confetes diversos',
+          'Brigadeiro, Beijinho, doce de leite ninho, Bicho de pé, Brigadeiro de milho'
+        ]
+      },
+      { id: 'soft-drinks', label: 'Refrigerantes — marcar opções', multiple: true, options: ['Coca-Cola', 'Guaraná Antártica', 'Kuat ou Fanta', 'Fanta Laranja', 'Fanta Uva', 'Soda'] },
+      { id: 'dietary', label: 'Na festa teremos', multiple: true, options: ['Vegano', 'Vegetariano'] }
     ],
-    includedServices: [...commonIncluded, 'Pintura nas crianças', 'Gincana', 'Centro de mesa simples padrão do buffet', 'Porta-guardanapo', 'Som ambiente', 'Arco de balões na mesa em cores primárias — orgânico, desconstruído ou tradicional'],
-    includedNotes: ['Doces personalizados da mesa de decoração não estão incluídos automaticamente.']
+    includedServices: [
+      'Decoração Temática (consultar opções no Buffet)',
+      'Convite Digital',
+      'Pintura nas Crianças',
+      'Gincana',
+      'Centro de mesa simples padrão do buffet',
+      'Porta guardanapo',
+      'Garçons',
+      'Monitores',
+      'Gerente de evento',
+      'Copeira',
+      'Recepcionista',
+      'Vela Numérica para o Parabéns',
+      'Kit mamãe',
+      'Som Ambiente',
+      'Retrospectiva com 60 fotos — elaboração e projeção',
+      'Salão com ar ecobriza e Ventiladores',
+      'Arco de balões na mesa com cores primárias, podendo ser orgânico, desconstruído ou tradicional'
+    ],
+    includedNotes: [
+      'ATENÇÃO: NÃO É INCLUSO OS DOCES PERSONALIZADOS PARA A MESA DE DECORAÇÃO.',
+      'O documento possui o título “OPCIONAL:” sem itens especificados imediatamente abaixo.'
+    ],
+    contacts: [
+      { name: 'Flavio', phone: '11 96890 0572' },
+      { phone: '11 9 1088 7094', note: 'Contato adicional conforme documento Prata.' }
+    ],
+    socials: ['@buffetakelaoficial'],
+    website: 'www.buffetakela.com.br',
+    deliveryInstructions: [
+      'Guardar e apresentar todos os comprovantes na semana do evento.',
+      'Crianças pagantes a partir dos 6 anos e 12 meses.',
+      'Fotos para retrospectiva: entregar em um pendrive ou e-mail até 15 dias antes do evento.',
+      'Doces, personalizados e destilados: entregar 1 dia antes e agendado.',
+      'CERVEJA SOMENTE LATA, ENTREGAR MÍNIMO 1 DIA ANTES.'
+    ],
+    sourceText: 'CARDÁPIO Prata — entradas, lanches, escolha de Massa e Molho, salgados sortidos, assados, bolo exclusivo para corte com sorvete, duas opções de doces, seleção de refrigerantes, café e água saborizada. Todos os inclusos, observações, contatos e instruções do rodapé estão estruturados neste cadastro.'
   },
   {
     id: 'menu-akela-bronze',
     name: 'Bronze',
-    description: 'Cardápio da Unidade II com canapés, lanche de metro, salgados fritos na hora, festival de massas, bebidas e bar de brigadeiro.',
+    description: 'Cardápio Bronze da Unidade II, integralmente estruturado conforme o documento.',
     pricePerPerson: 0,
     category: 'Bronze · Unidade II',
     active: true,
     sourceLabel: 'CARDAPIO Bronze.docx',
-    unitRestriction: 'Somente Unidade II',
+    unitRestriction: 'Somente Unidade II · Rua Canto do Mangue, 5 · JD Marisa · SP',
     contractTemplateId: 'akela-bronze-unit2',
-    items: ['Canapés', 'Lanche de metro', 'Salgados fritos na hora', 'Festival de massa', 'Bebidas', 'Bar de brigadeiro', 'Bolo com sorvete'],
+    cakeFieldLabel: 'Bolo com Sorvete',
+    items: ['Entrada', 'Lanche de metro', 'Salgados sortidos fritos na hora', 'Festival de Massa', 'Bebidas', 'Bar de Brigadeiro', 'Bolo com Sorvete'],
     sections: [
-      { title: 'Entrada', items: ['Canapés', 'Brasileirinho: arancini', 'Mini pastéis com molho barbecue'] },
-      { title: 'Lanchonete', items: ['Lanche de metro'] },
-      { title: 'Salgados sortidos fritos na hora', items: ['Coxinha', 'Bolinho de queijo', 'Carne', 'Calabresa', 'Risoles de presunto e queijo', 'Enroladinho de salsicha', 'Kibe', 'Mini esfihas', 'Mini quiches', 'Mini assado de salsicha', 'Mini bauru', 'Mini empada'] },
-      { title: 'Festival de massa', items: ['Penne', 'Fusilini', 'Molho bolonhesa', 'Molho Melchior', 'Saladas'] },
-      { title: 'Durante todo o evento', items: ['Água com e sem gás', 'Suco natural de fruta', 'Coca-Cola', 'Guaraná'] },
-      { title: 'Encerramento', items: ['Doces — bar de brigadeiro', 'Bolo com sorvete'] }
+      { title: 'Entrada', items: ['Canapés', 'Brasileirinho: Arancini', 'Mini pastéis com molho barbecue'] },
+      { title: 'Lanchonete', items: ['LANCHE DE METRO'] },
+      { title: 'Salgados Sortidos Fritos na Hora', items: ['Coxinha', 'Bolinho de queijo', 'Carne', 'Calabresa', 'Risoles Presunto e Queijo', 'Enroladinho de Salsicha', 'Kibe', 'Mini esfihas', 'Mini quiches', 'Mini Assado salsicha', 'Mini Bauru', 'Mini empada'] },
+      { title: 'Festival de Massa', items: ['Penne', 'Fusilini', 'Molho Bolonhesa', 'Molho Melchior', 'Saladas'] },
+      { title: 'Durante todo o evento', items: ['Água com e sem gás', 'Suco natural de fruta', 'Coca Cola', 'Guaraná'] },
+      { title: 'Encerramento', items: ['DOCES BAR DE BRIGADEIRO', 'Bolo com Sorvete — descrição definida no evento'] }
     ],
-    includedServices: [...commonIncluded, 'Pintura nas crianças', 'Gincana', 'Porta-guardanapo', 'Som ambiente', 'Arco de balões na mesa em cores primárias — orgânico, desconstruído ou tradicional'],
-    includedNotes: ['O material Bronze indica como não inclusos automaticamente: enfeites de mesa dos convidados, doces personalizados, bolo, lembrancinhas, cerveja, vinho e taças.']
+    includedServices: [
+      'Decoração Temática (consultar opções no Buffet)',
+      'Convite Digital',
+      'Pintura nas Crianças',
+      'Gincana',
+      'Porta guardanapo',
+      'Garçons',
+      'Monitores',
+      'Gerente de evento',
+      'Copeira',
+      'Recepcionista',
+      'Vela Numérica para o Parabéns',
+      'Kit mamãe',
+      'Som Ambiente',
+      'Retrospectiva com 60 fotos — elaboração e projeção',
+      'Salão com ar ecobriza e Ventiladores',
+      'Arco de balões na mesa com cores primárias, podendo ser orgânico, desconstruído ou tradicional'
+    ],
+    includedNotes: [
+      'O documento Bronze apresenta “Bolo com Sorvete” no cardápio e também menciona “BOLO” junto a itens excluídos no corpo do contrato. A plataforma preserva as duas informações sem decidir qual prevalece.',
+      'O documento possui o título “opcional:” sem itens especificados imediatamente abaixo.'
+    ],
+    excludedItems: [
+      'Doces da mesa de decoração, Led n*, nome.',
+      'Lembrancinhas.',
+      'Bebida Alcoólica.',
+      'Gelo.',
+      'DJ.',
+      'Recredor — grafia mantida conforme documento de origem.',
+      'Centro de mesa dos convidados.'
+    ],
+    contacts: [
+      { name: 'Flavio', phone: '11 96890 0572' },
+      { name: 'Flávia', phone: '11 9 10887094' },
+      { phone: '11 91088 7094', note: 'WhatsApp para agendamento e entrega.' }
+    ],
+    socials: ['@buffetakelaoficial', '@buffetakela2oficial'],
+    website: 'www.buffetakela.com.br',
+    deliveryInstructions: [
+      'ATENÇÃO: Enviar o comprovante pelo WhatsApp.',
+      'Guardar e apresentar todos os comprovantes mensalmente e eventualmente na semana do evento.',
+      'Todos os doces decorativos, Lembrancinhas, Gelo e Cerveja em LATA para os convidados deverão ser entregues até um dia antes da festa em horário COMERCIAL e AGENDADO por WhatsApp (11) 91088-7094.',
+      'NÃO RECEBEMOS NO DIA DA FESTA.',
+      'Não insista!'
+    ],
+    sourceText: 'CARDAPIO Bronze — Canapés, Brasileirinho: Arancini, mini pastéis com barbecue; lanche de metro; salgados fritos na hora; festival de massa com Penne e Fusilini, molhos Bolonhesa e Melchior e saladas; água, suco, Coca Cola e Guaraná; bar de brigadeiro e bolo com sorvete. O cadastro também preserva integralmente os inclusos, o bloco ATENÇÃO, os itens NÃO INCLUSOS, contatos, redes sociais e regras de entrega.'
   },
   {
     id: 'menu-akela-churrasco-2027',
     name: 'Churrasco 2027',
-    description: 'Cardápio de churrasco exclusivo da Unidade II, com entradas, carnes, acompanhamentos, salgados, bolo, doces e bebidas.',
+    description: 'Cardápio Churrasco exclusivo da Unidade II, integralmente estruturado.',
     pricePerPerson: 0,
     category: 'Churrasco · 2027',
     active: true,
     sourceLabel: 'cardapio cchurrasco.docx',
-    unitRestriction: 'Somente Unidade II',
-    contractTemplateId: 'akela-services-2027',
-    items: ['Canapés e mini pastel', 'Churrasco', 'Acompanhamentos', 'Salgados', 'Bolo e sorvete', 'Bar de brigadeiro', 'Bebidas', 'Café e chá'],
+    unitRestriction: 'SOMENTE UNIDADE II',
+    contractTemplateId: 'akela-churrasco-2027',
+    cakeFieldLabel: 'Bolo (exclusivo para corte) com sorvete',
+    items: ['Entradas', 'Lanches', 'Churrasco', 'Acompanhamentos', 'Salgados sortidos', 'Bolo com sorvete', 'Bar de Brigadeiro', 'Bebidas', 'Café e chá'],
     sections: [
-      { title: '1ª hora · Entradas', items: ['Canapés simples', 'Mini pastel'] },
-      { title: 'Lanches', items: ['Lanche de metro', 'Lanche natural'] },
-      { title: '2ª hora · Almoço ou jantar', items: ['Carne bovina', 'Frango', 'Linguiça', 'Arroz', 'Farofa', 'Maionese de batata com ovo', 'Salada de macarrão', 'Mix de folhas com tomate'] },
-      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Risoles de presunto e queijo', 'Salsicha e kibe', 'Enroladinho de salsicha', 'Esfihas de carne, frango e calabresa', 'Mini quiche de alho-poró', 'Margarida', 'Mini pão de queijo'] },
-      { title: 'Finalização', items: ['Retrospectiva e parabéns faltando 1h30 para o término', 'Bolo exclusivo para corte com sorvete', 'Bar de brigadeiro com massas preta e branca', 'Cascata de chocolate ao leite com uva e merengue'] },
-      { title: 'Bebidas e encerramento', items: ['Suco natural de fruta', 'Refrigerantes selecionados', 'Água com e sem gás', 'Opções zero/diet', 'Mesa com café e chá simples', 'Água saborizada'] }
+      { title: '1ª hora de festa · Entradas', items: ['Canapés simples', 'Mini pastel'] },
+      { title: 'Lanches', items: ['Lanche de metro', 'Lanche Natural'] },
+      { title: '2ª hora de festa · Almoço ou Jantar', items: ['Carne Bovina', 'Frango', 'Linguiça', 'Arroz', 'Farofa', 'Maionese (batata com ovo)', 'Salada de macarrão', 'Mix de folhas — alface, rúcula ou agrião e tomate'] },
+      { title: 'Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Risoles presunto e queijo', 'Salsicha e Kibe', 'Enroladinho de salsicha', 'Esfihas de carne, frango, calabresa', 'Mini quiche de alho-poró', 'Margarida', 'Calabresa', 'Mini pão de queijo'] },
+      { title: 'Faltando 1h30 para o término', items: ['Passaremos a retrospectiva e em seguida o parabéns'] },
+      { title: '4ª hora de festa', items: ['Bolo exclusivo para corte com sorvete — descrição definida no evento', 'Bar de Brigadeiro com massa preta e branca', 'Cascata de chocolate ao leite com uva e merengue'] },
+      { title: 'Bebidas durante todo o evento', items: ['Suco Natural de Fruta', 'Refrigerantes conforme seleção', 'Água com e sem gás', 'Zero e Dieth'] },
+      { title: 'Encerramento', items: ['Mesa com Café e chá simples', 'Água saborizada à disposição'] }
     ],
     choiceGroups: [
-      { id: 'dietary', label: 'Perfil alimentar', options: ['Sem necessidade especial', 'Vegano', 'Vegetariano', 'Vegano e vegetariano'] }
+      { id: 'soft-drinks', label: 'Refrigerantes — marcar opções', multiple: true, options: ['Coca-Cola', 'Guaraná Antártica', 'Kuat ou Fanta', 'Fanta Laranja', 'Fanta Uva', 'Soda'] },
+      { id: 'dietary', label: 'Na festa teremos', multiple: true, options: ['Vegano', 'Vegetariano'] }
     ],
-    includedServices: [...commonIncluded, 'Pintura nas crianças', 'Gincana', 'Centro de mesa simples padrão do buffet', 'Porta-guardanapo', 'Som ambiente', 'Arco de balões na mesa em cores primárias — orgânico, desconstruído ou tradicional'],
-    includedNotes: ['Doces personalizados da mesa de decoração não estão incluídos automaticamente.']
+    includedServices: [
+      'Decoração Temática (consultar opções no Buffet)',
+      'Convite Digital',
+      'Pintura nas Crianças',
+      'Gincana',
+      'Centro de mesa simples padrão do buffet',
+      'Porta guardanapo',
+      'Garçons',
+      'Monitores',
+      'Gerente de evento',
+      'Copeira',
+      'Recepcionista',
+      'Vela Numérica para o Parabéns',
+      'Kit mamãe',
+      'Som Ambiente',
+      'Retrospectiva com 60 fotos — elaboração e projeção',
+      'Salão com ar ecobriza e Ventiladores',
+      'Arco de balões na mesa com cores primárias, podendo ser orgânico, desconstruído ou tradicional'
+    ],
+    includedNotes: [
+      'ATENÇÃO: NÃO É INCLUSO OS DOCES PERSONALIZADOS PARA A MESA DE DECORAÇÃO.',
+      'O documento possui o título “OPCIONAL:” sem itens especificados imediatamente abaixo.'
+    ],
+    contacts: [
+      { name: 'Flavio', phone: '11 96890 0572' },
+      { phone: '11 9 1088 7094', note: 'Contato adicional conforme documento.' },
+      { name: 'Flávia', phone: '11 9 8706 4006' }
+    ],
+    socials: ['@buffetakelaoficial'],
+    website: 'www.buffetakela.com.br',
+    deliveryInstructions: [
+      'Guardar e apresentar todos os comprovantes na semana do evento.',
+      'Crianças pagantes a partir dos 6 anos e 12 meses.',
+      'Fotos para retrospectiva: entregar em um pendrive ou e-mail até 15 dias antes do evento.',
+      'Doces, personalizados e destilados: entregar 1 dia antes e agendado.',
+      'CERVEJA SOMENTE LATA, ENTREGAR MÍNIMO 1 DIA ANTES.'
+    ],
+    sourceText: 'CARDÁPIO CHURRASCO SOMENTE UNIDADE II — entradas, lanches, churrasco com carne bovina, frango e linguiça, acompanhamentos detalhados incluindo Mix de folhas (alface, rúcula ou agrião e tomate), salgados, retrospectiva, bolo, bar de brigadeiro, cascata de chocolate, bebidas, café, chá e água saborizada. Inclusos e instruções de rodapé preservados.'
   },
   {
     id: 'menu-akela-boteco-2027',
     name: 'Boteco 2027',
-    description: 'Formato boteco com entradas, salgados, assados e porções, bolo, bar de brigadeiro, bebidas e café.',
+    description: 'Cardápio Boteco integralmente estruturado conforme o documento 2027.',
     pricePerPerson: 0,
     category: 'Boteco · 2027',
     active: true,
     sourceLabel: 'boteco 2027.docx',
-    contractTemplateId: 'akela-services-2027',
-    items: ['Entradas de boteco', 'Salgados e assados', 'Porções', 'Escondidinho de calabresa', 'Bolo com sorvete', 'Bar de brigadeiro', 'Bebidas', 'Café'],
+    contractTemplateId: 'akela-boteco-2027',
+    cakeFieldLabel: 'Bolo (exclusivo para corte) com sorvete',
+    items: ['Entradas', 'Salgados sortidos', 'Assados', 'Porções', 'Escondidinho de Calabresa', 'Bolo com sorvete', 'Bar de Brigadeiro', 'Bebidas', 'Café e água saborizada'],
     sections: [
-      { title: '1ª hora · Entradas', items: ['Mini pastel', 'Batata em conserva', 'Espetinho de conserva', 'Dadinho de tapioca', 'Polentinha frita com molho barbecue'] },
-      { title: '2ª hora · Salgados e assados', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Salsicha', 'Kibe', 'Risoles de presunto e queijo', 'Mini bauru', 'Esfiha de carne, frango e calabresa', 'Mini quiche de alho-poró', 'Margarida'] },
-      { title: 'Porções', items: ['Batata frita', 'Calabresa', 'Aipim', 'Anéis de cebola', 'Escondidinho de calabresa'] },
-      { title: 'Finalização', items: ['Bolo exclusivo para corte com sorvete', 'Bar de brigadeiro branco e preto com confetes diversos', 'Cascata de chocolate com uva'] },
-      { title: 'Bebidas e encerramento', items: ['Suco natural de fruta', 'Refrigerantes selecionados', 'Água com e sem gás', 'Opções zero/diet', 'Café', 'Água saborizada'] }
+      { title: '1ª hora de festa · Entradas', items: ['Mini Pastel', 'Batata em conserva', 'Espetinho de conserva', 'Dadinho de tapioca', 'Polentinha Frita — ambos com molho barbecue conforme documento'] },
+      { title: '2ª hora de festa · Salgados sortidos', items: ['Coxinha', 'Bolinha de queijo', 'Carne', 'Calabresa', 'Salsicha', 'Kibe', 'Risoles presunto e queijo'] },
+      { title: 'Assados', items: ['Mini bauru', 'Esfiha de Carne', 'Esfiha de frango', 'Esfiha de calabresa', 'Mini quiche de alho-poró', 'Calabresa', 'Margarida'] },
+      { title: 'Porções', items: ['Batata Frita', 'Calabresa', 'Aipim', 'Anéis de cebola', 'Escondidinho de Calabresa'] },
+      { title: 'Faltando 1h30 para o término', items: ['Bolo exclusivo para corte com sorvete — descrição definida no evento'] },
+      { title: 'Doces', items: ['BAR DE BRIGADEIRO: Brigadeiro branco e preto com confetes diversos', 'Cascata de chocolate com uva'] },
+      { title: 'Bebidas durante todo o evento', items: ['Suco Natural de Fruta', 'Refrigerantes conforme seleção', 'Água com e sem gás', 'Zero e Dieth'] },
+      { title: 'Encerramento', items: ['Café', 'Água saborizada'] }
     ],
     choiceGroups: [
-      { id: 'dietary', label: 'Perfil alimentar', options: ['Sem necessidade especial', 'Vegano', 'Vegetariano', 'Vegano e vegetariano'] }
+      { id: 'soft-drinks', label: 'Refrigerantes — marcar opções', multiple: true, options: ['Coca-Cola', 'Guaraná Antártica', 'Kuat ou Fanta', 'Fanta Laranja', 'Fanta Uva', 'Soda'] },
+      { id: 'dietary', label: 'Na festa teremos', multiple: true, options: ['Vegano', 'Vegetariano'] }
     ],
-    includedServices: [...commonIncluded, 'Porta-guardanapo'],
-    includedNotes: []
+    includedServices: [
+      'Decoração Temática (consultar opções no Buffet)',
+      'Convite Digital',
+      'Porta guardanapo',
+      'Garçons',
+      'Monitores',
+      'Gerente de evento',
+      'Copeira',
+      'Recepcionista',
+      'Vela Numérica para o Parabéns',
+      'Kit mamãe',
+      'Retrospectiva com 60 fotos — elaboração e projeção',
+      'Salão com ar ecobriza e Ventiladores'
+    ],
+    excludedItems: [
+      'Doces da mesa de decoração, Led n*, nome.',
+      'Lembrancinhas.',
+      'Bebida Alcoólica.',
+      'Gelo.',
+      'DJ.',
+      'Recredor — grafia mantida conforme documento de origem.',
+      'Centro de mesa dos convidados.'
+    ],
+    contacts: [
+      { name: 'Flavio', phone: '11 96890 0572' },
+      { name: 'Flávia', phone: '11 9 1088 7094' },
+      { phone: '11 91088 7094', note: 'WhatsApp para agendamento e entrega.' }
+    ],
+    socials: ['@buffetakelaoficial', '@buffetakela2oficial'],
+    website: 'www.buffetakela.com.br',
+    deliveryInstructions: [
+      'DADOS PARA PAGAMENTO — PIX: Buffet AKELA. O documento não informa a chave PIX.',
+      'ATENÇÃO: Enviar o comprovante pelo WhatsApp.',
+      'Guardar e apresentar todos os comprovantes mensalmente e eventualmente na semana do evento.',
+      'Todos os doces decorativos, Lembrancinhas, Gelo e Cerveja em LATA para os convidados deverão ser entregues até um dia antes da festa em horário COMERCIAL e AGENDADO por WhatsApp (11) 91088-7094.',
+      'NÃO RECEBEMOS NO DIA DA FESTA.',
+      'Não insista!'
+    ],
+    sourceText: 'CARDÁPIO BOTECO — entradas, salgados, assados, porções, escondidinho de calabresa, bolo com sorvete, bar de brigadeiro com cascata de chocolate e uva, bebidas, café e água saborizada. O cadastro preserva também DADOS PARA PAGAMENTO — PIX: Buffet AKELA, contatos, redes sociais, itens NÃO INCLUSOS e instruções de entrega.'
   }
 ]
 
@@ -177,8 +403,16 @@ export const defaultEvents: BuffetEvent[] = [
     theme: 'Jardim',
     menuId: 'menu-akela-infinity-2027',
     menuPricePerPerson: 110,
-    menuSelections: { 'main-course': 'Strogonoff de frango, batata palha, arroz e salada', dessert: 'Bar de brigadeiro branco e preto + cascata de chocolate ao leite com uva', dietary: 'Sem necessidade especial' },
-    contractTemplateId: 'akela-services-2027',
+    menuSelections: {
+      'main-course': 'Strogonoff de Frango, Batata palha, Arroz e Salada',
+      dessert: 'BAR DE BRIGADEIRO: Brigadeiro branco e preto, Cascata de chocolate ao leite com uva',
+      'soft-drinks': ['Coca-Cola', 'Guaraná Antártica'],
+      dietary: []
+    },
+    cakeDescription: '',
+    contractTemplateId: 'akela-infinity-2027',
+    paymentMethod: 'PIX',
+    paymentSchedule: Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 })),
     serviceIds: [],
     notes: '',
     discount: 0,
@@ -200,6 +434,6 @@ export const defaultSettings: BusinessSettings = {
   city: 'São Paulo / SP',
   website: 'www.buffetakela.com.br',
   instagram: '@buffetakelaoficial',
-  paymentTerms: 'Pagamento conforme condições registradas no contrato. Cheques devem ser compensados até 10 dias antes do evento; comprovantes de depósito ou PIX devem ser encaminhados ao financeiro.',
-  cancellationTerms: 'As regras de cancelamento são definidas pelo modelo de contrato selecionado para o evento.'
+  paymentTerms: 'Pagamento conforme o modelo contratual selecionado. Cheques devem respeitar os prazos do documento; comprovantes de depósito ou PIX devem ser encaminhados ao financeiro específico do modelo.',
+  cancellationTerms: 'As regras de cancelamento são definidas pelo documento de origem selecionado para o evento.'
 }

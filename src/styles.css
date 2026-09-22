@@ -338,6 +338,69 @@ td strong{font-size:11px}
 .contract-clauses{border-top:1px solid #d9d6ce}
 .clause-list{columns:2;column-gap:20px}.clause-list p{break-inside:avoid;margin:0 0 8px;font-size:8px;line-height:1.52;color:#5d655e;text-align:justify}.clause-list strong{color:#222a23}
 .operational-notes{margin-top:14px;background:#f4f1ea;padding:10px}.operational-notes>strong{font-size:7px;letter-spacing:.1em;text-transform:uppercase}.operational-notes p{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0;font-size:7.5px;line-height:1.4;color:#697069}
+
+.material-multi-field{align-self:start}
+.material-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:6px}
+.material-check{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#faf9f6;padding:9px 10px;cursor:pointer;transition:.18s ease;font-size:9px;color:#687068}
+.material-check input{width:14px;height:14px;accent-color:#26372d}
+.material-check.active{border-color:#8e9b90;background:#eef1ed;color:#223028}
+.field-note{display:block;margin-top:6px;font-size:8px;line-height:1.45;color:#8a908a}
+.payment-config{margin:18px 0;border:1px solid var(--line);background:#f8f6f1;padding:16px}
+.payment-schedule{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.payment-schedule-head,.payment-schedule-row{display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:7px;align-items:center}
+.payment-schedule-head{padding:0 4px 6px;font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:#8a908a}
+.payment-schedule-row{padding:5px 0;border-top:1px solid #e8e5dd}
+.payment-schedule-row strong{font-family:Georgia,serif;font-size:13px;font-weight:400;text-align:center}
+.payment-schedule-row input{width:100%;border:1px solid #ddd9d0;background:#fff;padding:8px 9px;font:inherit;font-size:9px;color:var(--ink)}
+.payment-schedule>small{display:block;margin-top:8px;font-size:7.5px;line-height:1.45;color:#8a908a}
+.payment-material-note{margin-top:12px;background:#ebe7dc;padding:10px;display:flex;flex-direction:column;gap:3px}
+.payment-material-note strong{font-size:8px;letter-spacing:.08em}.payment-material-note span{font-size:9px;color:#626a63}
+.payment-instruction{font-size:8px;line-height:1.45;color:#6f766f;margin:7px 0 0}
+.doc-package-excluded{margin-top:12px;border:1px solid #e1cbc5;background:#fbf5f2;padding:10px}
+.doc-package-excluded>span,.doc-material-ops>span,.doc-material-contacts>span{font-size:6.5px;font-weight:800;letter-spacing:.11em;color:#876e68}
+.doc-package-excluded>div{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 12px;margin-top:8px}
+.doc-package-excluded p{display:flex;align-items:flex-start;gap:5px;font-size:7.5px;line-height:1.35;margin:0;color:#6e5c57}
+.doc-material-ops,.doc-material-contacts{margin-top:10px;border:1px solid #dfddd6;background:#f7f5f0;padding:10px}
+.doc-material-ops.warning{background:#fbf4ed;border-color:#ead9c5}
+.doc-material-ops p{display:flex;gap:5px;align-items:flex-start;margin:5px 0 0;font-size:7.5px;line-height:1.4;color:#666e67}
+.doc-material-contacts p{font-size:7.5px;line-height:1.45;color:#666e67;margin:5px 0 0}
+.doc-payment-details{margin-top:10px}
+.doc-payment-summary{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.doc-payment-summary>div{border:1px solid #dfddd6;padding:8px;display:flex;flex-direction:column}
+.doc-payment-summary span{font-size:6.5px;text-transform:uppercase;letter-spacing:.08em;color:#8b918b}.doc-payment-summary strong{font-size:8px;margin-top:3px}
+.doc-payment-table{margin-top:8px;border:1px solid #dfddd6}
+.doc-payment-table-head,.doc-payment-table-row{display:grid;grid-template-columns:50px 1fr 1fr 1fr;gap:0}
+.doc-payment-table-head{background:#efede7;font-size:6.5px;text-transform:uppercase;letter-spacing:.06em;color:#808680}
+.doc-payment-table-head span,.doc-payment-table-row>*{padding:6px 7px;border-right:1px solid #e4e1da}
+.doc-payment-table-head span:last-child,.doc-payment-table-row>*:last-child{border-right:0}
+.doc-payment-table-row{border-top:1px solid #e4e1da;font-size:7.5px}
+.doc-payment-table-row strong{font-weight:700}
+.doc-payment-note{margin-top:8px;background:#f3efe5;padding:8px;display:flex;flex-direction:column;gap:3px}
+.doc-payment-note strong{font-size:6.5px;letter-spacing:.08em}.doc-payment-note span{font-size:7.5px;line-height:1.4}
+.template-document-details{margin-top:12px}
+.contract-location-date{margin-top:18px;text-align:right;font-size:8px;color:#606860;font-style:italic}
+
+.material-editor-modal{width:min(860px,calc(100vw - 32px));max-height:92vh;overflow:auto;padding:46px 34px 28px}
+.material-editor-section{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.material-editor-section>strong{display:block;font-family:Georgia,serif;font-size:17px;font-weight:400;margin-bottom:13px}
+.tall-textarea{min-height:135px!important}
+.material-source-lock{margin-top:18px;padding:12px;background:#f1eee7;border:1px solid var(--line);display:flex;gap:9px;align-items:flex-start}
+.material-source-lock span{display:flex;flex-direction:column}.material-source-lock strong{font-size:9px}.material-source-lock small{font-size:8px;color:#7e847e;margin-top:3px;line-height:1.4}
+
+.template-details{margin:12px 0 10px;border-top:1px solid var(--line);padding-top:10px}
+.template-details summary{cursor:pointer;font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f685f;list-style:none}
+.template-details summary::-webkit-details-marker{display:none}
+.template-details summary:after{content:'+';float:right;font-size:13px;font-weight:400}
+.template-details[open] summary:after{content:'−'}
+.template-details-body{margin-top:12px;max-height:360px;overflow:auto;padding-right:5px}
+.template-details-body p,.template-details-body li{font-size:8px;line-height:1.5;color:#687068}
+.template-details-body p{margin:6px 0}.template-details-body h4{font-size:8px;letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px;color:#2d372f}
+.template-details-body ol,.template-details-body ul{padding-left:17px;margin:0}.template-details-body li{margin-bottom:6px}
+
+.source-verbatim{margin:8px 0 12px;border-top:1px solid var(--line);padding-top:9px}
+.source-verbatim summary{cursor:pointer;font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f685f}
+.source-verbatim-head{display:flex;gap:6px;align-items:center;margin:10px 0 7px;font-size:8px;color:#7a817a}
+.source-verbatim pre{white-space:pre-wrap;word-break:break-word;background:#f7f5ef;border:1px solid #dfdcd4;padding:10px;max-height:360px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:7px;line-height:1.45;color:#505750}
 .mobile-nav{display:none}
 @media(max-width:1100px){
   .metric-grid{grid-template-columns:repeat(2,1fr)}
@@ -354,7 +417,8 @@ td strong{font-size:11px}
   .health-content{padding:8px 18px 20px;gap:18px}.conversion-ring{width:124px;height:124px}.conversion-ring>div{width:92px;height:92px}.conversion-ring strong{font-size:24px}
   .section-intro,.panel-toolbar{align-items:flex-start;flex-direction:column}.panel-toolbar{padding:18px}.section-intro h2,.panel-toolbar h2{font-size:26px}
   .filters{padding:12px}.menu-grid,.contract-template-grid{grid-template-columns:1fr}.service-row{grid-template-columns:36px 1fr 32px}.service-price{display:none}
-  .material-summary,.doc-menu-sections,.doc-choice-grid,.doc-package-included>div,.rental-rules{grid-template-columns:1fr}
+  .material-summary,.doc-menu-sections,.doc-choice-grid,.doc-package-included>div,.doc-package-excluded>div,.rental-rules,.material-check-grid,.doc-payment-summary{grid-template-columns:1fr}
+  .payment-schedule-head,.payment-schedule-row{grid-template-columns:34px 1fr}.payment-schedule-head span:nth-child(3),.payment-schedule-head span:nth-child(4){display:none}.payment-schedule-row input:nth-child(3),.payment-schedule-row input:nth-child(4){grid-column:2}.payment-config{padding:12px}
   .contract-template-preview{grid-template-columns:1fr}.contract-template-preview>.pill{justify-self:start}
   .doc-celebrant-grid{grid-template-columns:1fr 1fr}.doc-celebrant-grid .wide{grid-column:span 2}.clause-list{columns:1}
   .contract-card{grid-template-columns:38px 1fr 20px}.contract-value{display:none}.calendar-panel{padding:12px}.calendar-head{align-items:flex-start;gap:10px;flex-direction:column}.calendar-day{min-height:76px;padding:4px}.calendar-event{padding:4px}.calendar-event strong{display:none}
@@ -363,7 +427,7 @@ td strong{font-size:11px}
   .mobile-nav button{border:0;background:transparent;color:#777d77;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:7px}.mobile-nav button.active{color:var(--ink)}
   .mobile-nav .mobile-add{position:absolute;right:14px;top:-50px;width:44px;height:44px;background:var(--ink);color:#fff;box-shadow:0 7px 18px rgba(20,30,23,.2)}
   .wizard{width:100%;height:100%;max-height:none;grid-template-columns:1fr}.modal-backdrop{padding:0}.wizard-side{display:none}.wizard-main{min-height:100vh;max-height:none}.wizard-content{padding:54px 18px 20px}.wizard-content h2{font-size:28px}.wizard-actions{padding:12px 18px;position:sticky;bottom:0}
-  .wizard-menu-grid{grid-template-columns:1fr}.simple-modal,.signature-modal{width:100%;max-height:100vh;min-height:100vh;padding:54px 18px 30px}
+  .wizard-menu-grid{grid-template-columns:1fr}.simple-modal,.signature-modal,.material-editor-modal{width:100%;max-height:100vh;min-height:100vh;padding:54px 18px 30px}
   .contract-toolbar{height:auto;padding:12px;align-items:flex-start;gap:8px;flex-direction:column;position:sticky}.contract-actions{width:100%;overflow:auto}.contract-actions .btn{white-space:nowrap;flex:1}
   .contract-document,.quote-document{width:calc(100% - 16px);margin:10px auto 35px;padding:30px 20px}.doc-title{padding:30px 0 24px}.doc-title h1{font-size:30px}.doc-party-grid{grid-template-columns:1fr}.doc-data-grid{grid-template-columns:1fr 1fr}.doc-data-grid .wide{grid-column:span 2}
   .quote-hero{grid-template-columns:1fr;gap:18px;padding:28px 0}.quote-hero h1{font-size:29px}.quote-menu{flex-direction:column}.quote-menu>div:last-child{align-items:flex-start}.quote-validity{grid-template-columns:22px 1fr}.quote-validity p{grid-column:1 / -1;text-align:left}.quote-public-intro{width:calc(100% - 16px);margin:10px auto -2px;padding:15px;align-items:flex-start;flex-direction:column}.quote-public-intro .btn{width:100%}
@@ -436,6 +500,14 @@ td strong{font-size:11px}
   .contract-document .doc-package-included>div{gap:.8mm 3mm;margin-top:1mm}
   .contract-document .doc-package-included p{font-size:6.2pt;line-height:1.25}
   .contract-document .doc-material-note{font-size:6.1pt;margin:1mm 0 0;padding:1.3mm 1.6mm}
+  .contract-document .doc-package-excluded,.contract-document .doc-material-ops,.contract-document .doc-material-contacts,.contract-document .doc-payment-details{margin-top:1.5mm;padding:1.6mm}
+  .contract-document .doc-package-excluded>div{gap:.8mm 3mm;margin-top:1mm}
+  .contract-document .doc-package-excluded p,.contract-document .doc-material-ops p,.contract-document .doc-material-contacts p{font-size:6.1pt;line-height:1.28;margin:.8mm 0 0}
+  .contract-document .doc-payment-summary{gap:1.3mm}.contract-document .doc-payment-summary>div{padding:1.5mm}
+  .contract-document .doc-payment-table{margin-top:1.3mm}.contract-document .doc-payment-table-head span,.contract-document .doc-payment-table-row>*{padding:1.2mm 1.5mm}
+  .contract-document .doc-payment-table-head,.contract-document .doc-payment-table-row{font-size:6pt}
+  .contract-document .doc-payment-note{margin-top:1.2mm;padding:1.4mm}
+  .quote-document .doc-package-excluded,.quote-document .doc-material-ops,.quote-document .doc-material-contacts,.quote-document .doc-payment-details{break-inside:avoid}
   .contract-document .contract-clauses{break-before:auto!important}
   .contract-document .clause-list{columns:1;column-gap:0}
   .contract-document .clause-list p{font-size:6.2pt;line-height:1.32;margin:0 0 1.4mm;text-align:justify;break-inside:auto}

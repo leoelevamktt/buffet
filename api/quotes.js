@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { event, menu, services, settings, total } = req.body || {}
+      const { event, menu, services, settings, total, contractTemplate } = req.body || {}
       if (!event?.id || !event?.clientName || !settings?.businessName) {
         return res.status(400).json({ error: 'Dados obrigatórios do orçamento não foram informados.' })
       }
@@ -45,7 +45,8 @@ export default async function handler(req, res) {
         menu: menu || null,
         services: Array.isArray(services) ? services : [],
         settings,
-        total: Number(total) || 0
+        total: Number(total) || 0,
+        contractTemplate: contractTemplate || null
       }
 
       await put(pathnameFor(token), JSON.stringify(quote), {

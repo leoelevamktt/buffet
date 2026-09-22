@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from './data'
 import { contractTemplates, getContractTemplate } from './materials'
+import { getSourceMaterialText } from './sourceMaterials'
 import { useLocalStorage, uid } from './storage'
 import type { BuffetEvent, BusinessSettings, ContractTemplate, MenuItem, Section, ServiceItem } from './types'
 import { contractSequence, dateBR, eventTotal, money, phoneDigits, shortDate, statusClass } from './utils'
@@ -48,6 +49,7 @@ interface RemoteQuote {
   services: ServiceItem[]
   settings: BusinessSettings
   total: number
+  contractTemplate?: ContractTemplate
 }
 
 function AdminApp() {
@@ -66,18 +68,42 @@ function AdminApp() {
   const activeQuote = events.find((item) => item.id === activeQuoteId)
 
   useEffect(() => {
-    const migrationKey = 'akela-materials-2027-v1'
+    const migrationKey = 'akela-materials-2027-v2-complete'
     if (window.localStorage.getItem(migrationKey)) return
 
     const legacyMenuIds = new Set(['menu-classico', 'menu-celebracao', 'menu-signature', 'menu-coquetel'])
     setMenus((current) => {
       const custom = current.filter((menu) => !legacyMenuIds.has(menu.id) && !defaultMenus.some((official) => official.id === menu.id))
-      return [...defaultMenus, ...custom]
+      const official = defaultMenus.map((source) => {
+        const previous = current.find((menu) => menu.id === source.id)
+        return {
+          ...source,
+          pricePerPerson: previous?.pricePerPerson ?? source.pricePerPerson,
+          active: previous?.active ?? source.active
+        }
+      })
+      return [...official, ...custom]
     })
     setEvents((current) => current.map((event) => {
       if (event.id === 'event-demo-1') return { ...defaultEvents[0] }
-      if (event.id === 'event-demo-2') return { ...event, menuId: 'menu-akela-prata-2027', menuPricePerPerson: event.menuPricePerPerson ?? 0, contractTemplateId: 'akela-services-2027' }
-      return event
+      const officialMenu = defaultMenus.find((menu) => menu.id === event.menuId)
+      const paymentSchedule = event.paymentSchedule?.length
+        ? event.paymentSchedule
+        : Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
+      if (officialMenu) {
+        return {
+          ...event,
+          contractTemplateId: officialMenu.contractTemplateId,
+          menuPricePerPerson: event.menuPricePerPerson ?? officialMenu.pricePerPerson,
+          cakeDescription: event.cakeDescription || '',
+          paymentMethod: event.paymentMethod || '',
+          paymentSchedule
+        }
+      }
+      if (event.contractTemplateId === 'akela-services-2027') {
+        return { ...event, contractTemplateId: 'akela-infinity-2027', paymentSchedule }
+      }
+      return { ...event, paymentSchedule }
     }))
     setSettings((current) => current.businessName === 'Maison Buffet' ? defaultSettings : current)
     window.localStorage.setItem(migrationKey, '1')
@@ -625,7 +651,32 @@ function SettingsView({ settings, setSettings, notify }: {
               {template.extraGuestPrice && <span><strong>{money(template.extraGuestPrice)}</strong> convidado excedente</span>}
               {template.toleranceMinutes && <span><strong>{template.toleranceMinutes} min</strong> tolerância</span>}
               {template.overtimePenaltyPercent && <span><strong>{template.overtimePenaltyPercent}%</strong> multa por excedente</span>}
+              {template.paymentScheduleSlots && <span><strong>{template.paymentScheduleSlots}</strong> linhas de parcelas/cheques</span>}
             </div>
+            <details className="template-details">
+              <summary>Ver conteúdo completo</summary>
+              <div className="template-details-body">
+                <p><strong>Financeiro:</strong> {template.financialEmail}</p>
+                <p><strong>Formas de pagamento:</strong> {template.paymentMethods.join(', ')}</p>
+                <p><strong>Cancelamento:</strong> {template.cancellationSummary}</p>
+                {template.paymentData?.pixLabel && <p><strong>PIX:</strong> {template.paymentData.pixLabel}{template.paymentData.pixKey ? ' · ' + template.paymentData.pixKey : ' · chave não informada no documento'}</p>}
+                <h4>Cláusulas</h4>
+                <ol>{template.clauses.map((clause) => <li key={clause}>{clause}</li>)}</ol>
+                {template.operationalNotes?.length ? <><h4>Orientações</h4><ul>{template.operationalNotes.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+                {template.excludedItems?.length ? <><h4>Não inclusos</h4><ul>{template.excludedItems.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+                {template.deliveryInstructions?.length ? <><h4>Entrega / atenção</h4><ul>{template.deliveryInstructions.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+                {template.contacts?.length ? <><h4>Contatos do documento</h4><ul>{template.contacts.map((contact, index) => <li key={index}>{[contact.name, contact.phone, contact.note].filter(Boolean).join(' — ')}</li>)}</ul></> : null}
+                {template.website && <p><strong>Site:</strong> {template.website}</p>}
+                {template.socials?.length ? <p><strong>Redes:</strong> {template.socials.join(' · ')}</p> : null}
+              </div>
+            </details>
+            {getSourceMaterialText(template.id) && (
+              <details className="source-verbatim">
+                <summary>Transcrição integral do DOCX</summary>
+                <div className="source-verbatim-head"><FileText size={14} /><span>{getSourceMaterialText(template.id)?.fileName}</span></div>
+                <pre>{getSourceMaterialText(template.id)?.text}</pre>
+              </details>
+            )}
             <small>Fonte: {template.sourceLabel}</small>
           </article>
         ))}
@@ -661,7 +712,10 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     basePrice: 0,
     menuPricePerPerson: menus.find((menu) => menu.active !== false)?.pricePerPerson || 0,
     menuSelections: {},
+    cakeDescription: '',
     contractTemplateId: menus.find((menu) => menu.active !== false)?.contractTemplateId || contractTemplates[0]?.id,
+    paymentMethod: '',
+    paymentSchedule: Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 })),
     serviceIds: [],
     notes: '',
     discount: 0,
@@ -675,7 +729,20 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
   const selectedMenu = menus.find((menu) => menu.id === form.menuId)
   const selectedTemplate = getContractTemplate(form.contractTemplateId)
   const isRental = selectedTemplate.type === 'space-rental'
-  const canContinue = step === 1 ? Boolean(form.clientName && form.eventDate && form.venue && form.guests) : step === 2 ? (isRental ? (form.basePrice ?? 0) >= 0 : Boolean(form.menuId && (form.menuPricePerPerson ?? 0) >= 0)) : true
+  const requiredChoicesComplete = (selectedMenu?.choiceGroups || []).filter((group) => group.required).every((group) => {
+    const value = form.menuSelections?.[group.id]
+    return Array.isArray(value) ? value.length > 0 : Boolean(value)
+  })
+  const canContinue = step === 1
+    ? Boolean(form.clientName && form.eventDate && form.venue && form.guests)
+    : step === 2
+      ? (isRental ? (form.basePrice ?? 0) > 0 : Boolean(form.menuId && (form.menuPricePerPerson ?? 0) > 0 && requiredChoicesComplete))
+      : true
+  const updatePaymentEntry = (index: number, key: 'date' | 'checkNumber' | 'amount', value: string | number) => {
+    const current = form.paymentSchedule || Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
+    const next = current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [key]: value } : entry)
+    set('paymentSchedule', next)
+  }
 
   return (
     <div className="modal-backdrop">
@@ -778,15 +845,47 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
                   <div className="form-grid two compact">
                     <Field label="Valor por pessoa *" value={String(form.menuPricePerPerson ?? selectedMenu.pricePerPerson ?? 0)} onChange={(v) => set('menuPricePerPerson', Math.max(0, Number(v)))} type="number" prefix="R$" />
                     <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{contractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
-                    {selectedMenu.choiceGroups?.map((group) => (
-                      <div className="field" key={group.id}>
-                        <label>{group.label}{group.required ? ' *' : ''}</label>
-                        <select value={form.menuSelections?.[group.id] || ''} onChange={(e) => set('menuSelections', { ...(form.menuSelections || {}), [group.id]: e.target.value })}>
-                          <option value="">Selecionar</option>
-                          {group.options.map((option) => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      </div>
-                    ))}
+                    {selectedMenu.choiceGroups?.map((group) => {
+                      const currentValue = form.menuSelections?.[group.id]
+                      if (group.multiple) {
+                        const selectedValues = Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []
+                        return (
+                          <div className="field span-2 material-multi-field" key={group.id}>
+                            <label>{group.label}{group.required ? ' *' : ''}</label>
+                            <div className="material-check-grid">
+                              {group.options.map((option) => {
+                                const checked = selectedValues.includes(option)
+                                return (
+                                  <label className={checked ? 'material-check active' : 'material-check'} key={option}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => set('menuSelections', {
+                                        ...(form.menuSelections || {}),
+                                        [group.id]: checked ? selectedValues.filter((value) => value !== option) : [...selectedValues, option]
+                                      })}
+                                    />
+                                    <span>{option}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            {group.note && <small className="field-note">{group.note}</small>}
+                          </div>
+                        )
+                      }
+                      return (
+                        <div className="field" key={group.id}>
+                          <label>{group.label}{group.required ? ' *' : ''}</label>
+                          <select value={typeof currentValue === 'string' ? currentValue : ''} onChange={(e) => set('menuSelections', { ...(form.menuSelections || {}), [group.id]: e.target.value })}>
+                            <option value="">Selecionar</option>
+                            {group.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                          </select>
+                          {group.note && <small className="field-note">{group.note}</small>}
+                        </div>
+                      )
+                    })}
+                    {selectedMenu.cakeFieldLabel && <Field label={selectedMenu.cakeFieldLabel} value={form.cakeDescription || ''} onChange={(v) => set('cakeDescription', v)} placeholder="Descreva sabor, acabamento ou observação conforme combinado" />}
                   </div>
                   <div className="material-summary">
                     {selectedMenu.sections?.map((section) => <div key={section.title}><strong>{section.title}</strong><span>{section.items.join(' · ')}</span></div>)}
@@ -815,6 +914,40 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
                   )
                 })}
               </div>
+              <div className="payment-config">
+                <div className="form-section-title spaced"><CircleDollarSign size={18} /><div><strong>Pagamento conforme documento</strong><span>{selectedTemplate.sourceLabel}</span></div></div>
+                <div className="form-grid two compact">
+                  <div className="field">
+                    <label>Forma de pagamento</label>
+                    <select value={form.paymentMethod || ''} onChange={(e) => set('paymentMethod', e.target.value)}>
+                      <option value="">Selecionar / definir depois</option>
+                      {selectedTemplate.paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
+                    </select>
+                  </div>
+                  <div className="field"><label>E-mail financeiro do modelo</label><input value={selectedTemplate.financialEmail} disabled /></div>
+                </div>
+                {selectedTemplate.paymentScheduleSlots ? (
+                  <div className="payment-schedule">
+                    <div className="payment-schedule-head"><span>Parcela</span><span>Data</span><span>Nº do cheque</span><span>Valor</span></div>
+                    {Array.from({ length: selectedTemplate.paymentScheduleSlots }).map((_, index) => {
+                      const entry = form.paymentSchedule?.[index] || { date: '', checkNumber: '', amount: 0 }
+                      return (
+                        <div className="payment-schedule-row" key={index}>
+                          <strong>{index + 1}</strong>
+                          <input type="date" value={entry.date} onChange={(e) => updatePaymentEntry(index, 'date', e.target.value)} />
+                          <input value={entry.checkNumber} onChange={(e) => updatePaymentEntry(index, 'checkNumber', e.target.value)} placeholder="Número" />
+                          <input type="number" min="0" step="0.01" value={entry.amount || ''} onChange={(e) => updatePaymentEntry(index, 'amount', Number(e.target.value))} placeholder="R$ 0,00" />
+                        </div>
+                      )
+                    })}
+                    <small>O material original possui cinco linhas para Data, nº do cheque e Valor. Preencha somente quando aplicável.</small>
+                  </div>
+                ) : null}
+                {selectedTemplate.paymentData?.pixLabel && (
+                  <div className="payment-material-note"><strong>PIX / Dados do documento</strong><span>{selectedTemplate.paymentData.pixLabel}{selectedTemplate.paymentData.pixKey ? ' · ' + selectedTemplate.paymentData.pixKey : ' · chave não informada no documento'}</span></div>
+                )}
+                {selectedTemplate.paymentData?.proofInstructions?.map((instruction) => <p className="payment-instruction" key={instruction}>{instruction}</p>)}
+              </div>
               <div className="form-grid two compact">
                 <Field label="Desconto" value={String(form.discount)} onChange={(v) => set('discount', Number(v))} type="number" prefix="R$" />
                 <Field label="Sinal recebido" value={String(form.deposit)} onChange={(v) => set('deposit', Number(v))} type="number" prefix="R$" />
@@ -838,19 +971,113 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
   const [description, setDescription] = useState(initial?.description || '')
   const [price, setPrice] = useState(initial?.pricePerPerson || 0)
   const [items, setItems] = useState(initial?.items.join(', ') || '')
+  const [cakeFieldLabel, setCakeFieldLabel] = useState(initial?.cakeFieldLabel || '')
+  const [unitRestriction, setUnitRestriction] = useState(initial?.unitRestriction || '')
+  const [sectionsText, setSectionsText] = useState((initial?.sections || []).map((section) => section.title + ' | ' + section.items.join('; ')).join('\n'))
+  const [choicesText, setChoicesText] = useState((initial?.choiceGroups || []).map((group) => {
+    const flags = [group.required ? '[obrigatória]' : '', group.multiple ? '[múltipla]' : ''].filter(Boolean).join(' ')
+    return group.label + (flags ? ' ' + flags : '') + ' | ' + group.options.join('; ')
+  }).join('\n'))
+  const [includedText, setIncludedText] = useState((initial?.includedServices || []).join('\n'))
+  const [includedNotesText, setIncludedNotesText] = useState((initial?.includedNotes || []).join('\n'))
+  const [excludedText, setExcludedText] = useState((initial?.excludedItems || []).join('\n'))
+  const [deliveryText, setDeliveryText] = useState((initial?.deliveryInstructions || []).join('\n'))
+  const [contactsText, setContactsText] = useState((initial?.contacts || []).map((contact) => [contact.name || '', contact.phone, contact.note || ''].join(' | ')).join('\n'))
+  const [socialsText, setSocialsText] = useState((initial?.socials || []).join('\n'))
+  const [website, setWebsite] = useState(initial?.website || '')
+
+  const lines = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
+
+  const save = () => {
+    const sections = lines(sectionsText).map((line) => {
+      const [title, ...rest] = line.split('|')
+      return { title: title.trim(), items: rest.join('|').split(';').map((item) => item.trim()).filter(Boolean) }
+    })
+    const choiceGroups = lines(choicesText).map((line, index) => {
+      const [rawLabel, ...rest] = line.split('|')
+      const existing = initial?.choiceGroups?.[index]
+      const required = rawLabel.includes('[obrigatória]')
+      const multiple = rawLabel.includes('[múltipla]')
+      const label = rawLabel.replace('[obrigatória]', '').replace('[múltipla]', '').trim()
+      return {
+        id: existing?.id || 'choice-' + (index + 1),
+        label,
+        options: rest.join('|').split(';').map((item) => item.trim()).filter(Boolean),
+        required,
+        multiple,
+        note: existing?.note
+      }
+    })
+    const contacts = lines(contactsText).map((line) => {
+      const [namePart = '', phone = '', note = ''] = line.split('|').map((item) => item.trim())
+      return { name: namePart || undefined, phone, note: note || undefined }
+    }).filter((contact) => contact.phone)
+
+    onSave({
+      ...(initial || {}),
+      id: initial?.id || uid('menu'),
+      name,
+      category,
+      description,
+      pricePerPerson: price,
+      items: items.split(',').map((item) => item.trim()).filter(Boolean),
+      cakeFieldLabel: cakeFieldLabel || undefined,
+      unitRestriction: unitRestriction || undefined,
+      sections,
+      choiceGroups,
+      includedServices: lines(includedText),
+      includedNotes: lines(includedNotesText),
+      excludedItems: lines(excludedText),
+      deliveryInstructions: lines(deliveryText),
+      contacts,
+      socials: lines(socialsText),
+      website: website || undefined,
+      active: initial?.active ?? true
+    })
+  }
+
   return (
     <div className="modal-backdrop">
-      <div className="simple-modal">
+      <div className="simple-modal material-editor-modal">
         <button className="modal-close" onClick={onClose}><X size={20} /></button>
-        <span className="eyebrow">{initial ? 'EDITAR CARDÁPIO' : 'NOVO ITEM DE CATÁLOGO'}</span><h2>{initial ? 'Editar cardápio' : 'Criar cardápio'}</h2><p className="lead">{initial ? 'Atualize nome, composição e valor. Eventos antigos continuam preservados.' : 'Cadastre uma opção para reutilizar em qualquer evento.'}</p>
-        <div className="form-grid two">
-          <Field label="Nome" value={name} onChange={setName} />
-          <Field label="Categoria" value={category} onChange={setCategory} />
-          <Field label="Valor por pessoa" value={String(price)} onChange={(v) => setPrice(Number(v))} type="number" />
-          <div className="field span-2"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div className="field span-2"><label>Itens inclusos <span>— separe por vírgulas</span></label><textarea value={items} onChange={(e) => setItems(e.target.value)} /></div>
+        <span className="eyebrow">{initial ? 'EDITAR CARDÁPIO' : 'NOVO ITEM DE CATÁLOGO'}</span>
+        <h2>{initial ? 'Editar cardápio completo' : 'Criar cardápio'}</h2>
+        <p className="lead">{initial ? 'Todos os campos estruturados do material podem ser alterados. Eventos e documentos já compartilhados continuam preservados.' : 'Cadastre uma opção para reutilizar em qualquer evento.'}</p>
+
+        <div className="material-editor-section">
+          <strong>Informações principais</strong>
+          <div className="form-grid two">
+            <Field label="Nome" value={name} onChange={setName} />
+            <Field label="Categoria" value={category} onChange={setCategory} />
+            <Field label="Valor por pessoa" value={String(price)} onChange={(v) => setPrice(Number(v))} type="number" />
+            <Field label="Restrição de unidade" value={unitRestriction} onChange={setUnitRestriction} />
+            <Field label="Campo de bolo" value={cakeFieldLabel} onChange={setCakeFieldLabel} />
+            <Field label="Website do material" value={website} onChange={setWebsite} />
+            <div className="field span-2"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+            <div className="field span-2"><label>Resumo de itens <span>— separe por vírgulas</span></label><textarea value={items} onChange={(e) => setItems(e.target.value)} /></div>
+          </div>
         </div>
-        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name} onClick={() => onSave({ ...(initial || {}), id: initial?.id || uid('menu'), name, category, description, pricePerPerson: price, items: items.split(',').map((item) => item.trim()).filter(Boolean), active: initial?.active ?? true })}>Salvar cardápio</button></div>
+
+        <div className="material-editor-section">
+          <strong>Composição e escolhas</strong>
+          <div className="field"><label>Seções do cardápio <span>— uma por linha: Título | item 1; item 2</span></label><textarea className="tall-textarea" value={sectionsText} onChange={(e) => setSectionsText(e.target.value)} /></div>
+          <div className="field"><label>Escolhas configuráveis <span>— Label [obrigatória] [múltipla] | opção 1; opção 2</span></label><textarea className="tall-textarea" value={choicesText} onChange={(e) => setChoicesText(e.target.value)} /></div>
+        </div>
+
+        <div className="material-editor-section">
+          <strong>Inclusos, exclusões e operação</strong>
+          <div className="form-grid two">
+            <div className="field"><label>Itens incluídos <span>— um por linha</span></label><textarea className="tall-textarea" value={includedText} onChange={(e) => setIncludedText(e.target.value)} /></div>
+            <div className="field"><label>Itens não incluídos <span>— um por linha</span></label><textarea className="tall-textarea" value={excludedText} onChange={(e) => setExcludedText(e.target.value)} /></div>
+            <div className="field"><label>Notas e alertas <span>— um por linha</span></label><textarea className="tall-textarea" value={includedNotesText} onChange={(e) => setIncludedNotesText(e.target.value)} /></div>
+            <div className="field"><label>Entrega / instruções <span>— uma por linha</span></label><textarea className="tall-textarea" value={deliveryText} onChange={(e) => setDeliveryText(e.target.value)} /></div>
+            <div className="field"><label>Contatos <span>— Nome | Telefone | Observação</span></label><textarea value={contactsText} onChange={(e) => setContactsText(e.target.value)} /></div>
+            <div className="field"><label>Redes sociais <span>— uma por linha</span></label><textarea value={socialsText} onChange={(e) => setSocialsText(e.target.value)} /></div>
+          </div>
+        </div>
+
+        {initial?.sourceLabel && <div className="material-source-lock"><FileText size={16} /><span><strong>Fonte documental</strong><small>{initial.sourceLabel}. A referência de origem é preservada mesmo após edição.</small></span></div>}
+        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name} onClick={save}>Salvar cardápio completo</button></div>
       </div>
     </div>
   )
@@ -868,6 +1095,11 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
   const [sharing, setSharing] = useState(false)
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
+  const baseContractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const contractTemplate: ContractTemplate = {
+    ...baseContractTemplate,
+    sourceText: getSourceMaterialText(baseContractTemplate.id)?.text || baseContractTemplate.sourceText
+  }
   const total = eventTotal(event, menus, services)
 
   const createQuoteLink = async () => {
@@ -877,7 +1109,7 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
       const response = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, menu, services: selectedServices, settings, total })
+        body: JSON.stringify({ event, menu, services: selectedServices, settings, total, contractTemplate })
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Não foi possível gerar o orçamento.')
@@ -954,7 +1186,7 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
             <button onClick={copyLink}>Copiar link</button>
           </div>
         )}
-        <QuoteDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} />
+        <QuoteDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />
       </div>
     </div>
   )
@@ -964,13 +1196,14 @@ function MenuMaterialDetails({ menu, event }: { menu?: MenuItem; event: BuffetEv
   if (!menu) return null
   const choices = (menu.choiceGroups || [])
     .map((group) => ({ label: group.label, value: event.menuSelections?.[group.id] }))
-    .filter((item) => item.value)
+    .filter((item) => Array.isArray(item.value) ? item.value.length > 0 : Boolean(item.value))
 
   return (
     <>
-      {choices.length > 0 && (
+      {(choices.length > 0 || event.cakeDescription) && (
         <div className="doc-choice-grid">
-          {choices.map((choice) => <div key={choice.label}><span>{choice.label}</span><strong>{choice.value}</strong></div>)}
+          {choices.map((choice) => <div key={choice.label}><span>{choice.label}</span><strong>{Array.isArray(choice.value) ? choice.value.join(' · ') : choice.value}</strong></div>)}
+          {event.cakeDescription && <div><span>{menu.cakeFieldLabel || 'Bolo'}</span><strong>{event.cakeDescription}</strong></div>}
         </div>
       )}
       {menu.sections && menu.sections.length > 0 && (
@@ -986,20 +1219,116 @@ function MenuMaterialDetails({ menu, event }: { menu?: MenuItem; event: BuffetEv
           <div>{menu.includedServices.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div>
         </div>
       )}
+      {menu.excludedItems && menu.excludedItems.length > 0 && (
+        <div className="doc-package-excluded">
+          <span>ITENS NÃO INCLUSOS — CONFORME DOCUMENTO</span>
+          <div>{menu.excludedItems.map((item) => <p key={item}><X size={12} />{item}</p>)}</div>
+        </div>
+      )}
+      {menu.deliveryInstructions && menu.deliveryInstructions.length > 0 && (
+        <div className="doc-material-ops">
+          <span>ORIENTAÇÕES DO MATERIAL</span>
+          {menu.deliveryInstructions.map((item) => <p key={item}><CheckCircle2 size={12} />{item}</p>)}
+        </div>
+      )}
+      {menu.contacts && menu.contacts.length > 0 && (
+        <div className="doc-material-contacts">
+          <span>CONTATOS DO DOCUMENTO</span>
+          <p>{menu.contacts.map((contact) => [contact.name, contact.phone, contact.note].filter(Boolean).join(' — ')).join(' · ')}</p>
+          {menu.website && <p>{menu.website}</p>}
+          {menu.socials?.length ? <p>{menu.socials.join(' · ')}</p> : null}
+        </div>
+      )}
       {menu.includedNotes?.map((note) => <p className="doc-material-note" key={note}>{note}</p>)}
     </>
   )
 }
 
-function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
+function PaymentDocumentDetails({ event, template }: { event: BuffetEvent; template: ContractTemplate }) {
+  const slotCount = template.paymentScheduleSlots || 0
+  const entries = slotCount
+    ? Array.from({ length: slotCount }, (_, index) => event.paymentSchedule?.[index] || { date: '', checkNumber: '', amount: 0 })
+    : (event.paymentSchedule || []).filter((entry) => entry.date || entry.checkNumber || entry.amount > 0)
+  return (
+    <div className="doc-payment-details">
+      <div className="doc-payment-summary">
+        <div><span>Forma de pagamento selecionada</span><strong>{event.paymentMethod || 'A definir'}</strong></div>
+        <div><span>E-mail financeiro do modelo</span><strong>{template.financialEmail}</strong></div>
+      </div>
+      {entries.length > 0 && (
+        <div className="doc-payment-table">
+          <div className="doc-payment-table-head"><span>Parcela</span><span>Data</span><span>Nº do cheque</span><span>Valor</span></div>
+          {entries.map((entry, index) => (
+            <div className="doc-payment-table-row" key={index}>
+              <strong>{index + 1}</strong>
+              <span>{entry.date ? dateBR(entry.date) : '—'}</span>
+              <span>{entry.checkNumber || '—'}</span>
+              <strong>{entry.amount > 0 ? money(entry.amount) : '—'}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+      {template.paymentData?.pixLabel && (
+        <div className="doc-payment-note"><strong>DADOS PARA PAGAMENTO / PIX</strong><span>{template.paymentData.pixLabel}{template.paymentData.pixKey ? ' · ' + template.paymentData.pixKey : ' · chave PIX não informada no documento de origem'}</span></div>
+      )}
+      {template.paymentData?.proofInstructions?.map((instruction) => <p className="doc-clause" key={instruction}><strong>Comprovante.</strong> {instruction}</p>)}
+    </div>
+  )
+}
+
+function TemplateOperationalDetails({ template }: { template: ContractTemplate }) {
+  const hasContent = Boolean(
+    template.operationalNotes?.length ||
+    template.excludedItems?.length ||
+    template.deliveryInstructions?.length ||
+    template.contacts?.length ||
+    template.socials?.length ||
+    template.website
+  )
+  if (!hasContent) return null
+  return (
+    <div className="template-document-details">
+      {template.operationalNotes?.length ? (
+        <div className="doc-material-ops">
+          <span>ORIENTAÇÕES OPERACIONAIS DO DOCUMENTO</span>
+          {template.operationalNotes.map((note) => <p key={note}><CheckCircle2 size={12} />{note}</p>)}
+        </div>
+      ) : null}
+      {template.excludedItems?.length ? (
+        <div className="doc-package-excluded">
+          <span>ITENS NÃO INCLUSOS — TEXTO DO MATERIAL</span>
+          <div>{template.excludedItems.map((item) => <p key={item}><X size={12} />{item}</p>)}</div>
+        </div>
+      ) : null}
+      {template.deliveryInstructions?.length ? (
+        <div className="doc-material-ops warning">
+          <span>REGRAS DE ENTREGA / ATENÇÃO</span>
+          {template.deliveryInstructions.map((item) => <p key={item}><CheckCircle2 size={12} />{item}</p>)}
+        </div>
+      ) : null}
+      {template.contacts?.length || template.website || template.socials?.length ? (
+        <div className="doc-material-contacts">
+          <span>CONTATOS E CANAIS DO DOCUMENTO</span>
+          {template.contacts?.length ? <p>{template.contacts.map((contact) => [contact.name, contact.phone, contact.note].filter(Boolean).join(' — ')).join(' · ')}</p> : null}
+          {template.website && <p>{template.website}</p>}
+          {template.socials?.length ? <p>{template.socials.join(' · ')}</p> : null}
+          {template.paymentData?.proofWhatsapp && <p>WhatsApp indicado no material: {template.paymentData.proofWhatsapp}</p>}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function QuoteDocument({ event, menu, services, settings, total, expiresAt, templateOverride }: {
   event: BuffetEvent
   menu?: MenuItem
   services: ServiceItem[]
   settings: BusinessSettings
   total: number
   expiresAt?: string
+  templateOverride?: ContractTemplate
 }) {
-  const template = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const template = templateOverride || getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
   const isRental = template.type === 'space-rental'
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
   const menuSubtotal = isRental ? (event.basePrice || 0) : menuPrice * event.guests
@@ -1063,6 +1392,8 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
           <div className="quote-grand-total"><span>Valor total da proposta</span><strong>{money(total)}</strong></div>
         </div>
         <p className="doc-clause"><strong>Condições de pagamento.</strong> {settings.paymentTerms}</p>
+        <p className="doc-clause"><strong>Formas previstas no documento.</strong> {template.paymentMethods.join(', ')}.</p>
+        <PaymentDocumentDetails event={event} template={template} />
         {event.notes && <p className="doc-clause"><strong>Observações.</strong> {event.notes}</p>}
       </section>
 
@@ -1089,7 +1420,11 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
   const [syncing, setSyncing] = useState(false)
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
-  const contractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const baseContractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const contractTemplate: ContractTemplate = {
+    ...baseContractTemplate,
+    sourceText: getSourceMaterialText(baseContractTemplate.id)?.text || baseContractTemplate.sourceText
+  }
   const total = eventTotal(event, menus, services)
 
   const syncRemote = async (silent = false) => {
@@ -1226,6 +1561,9 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
   const title = template.type === 'space-rental' ? 'Contrato de Locação do Espaço' : 'Contrato de Prestação de Serviços'
   const subtitle = template.type === 'space-rental' ? 'LOCAÇÃO DO ESPAÇO' : 'PRESTAÇÃO DE SERVIÇOS'
+  const signatureDate = event.signature
+    ? new Date(event.signature.signedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    : '_____ de __________________ de 20_____'
 
   return (
     <article className="contract-document">
@@ -1289,7 +1627,8 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <p className="doc-clause"><strong>Pagamento.</strong> {settings.paymentTerms}</p>
         <p className="doc-clause"><strong>Cancelamento.</strong> {template.cancellationSummary}</p>
         <p className="doc-clause"><strong>Formas de pagamento previstas.</strong> {template.paymentMethods.join(', ')}.</p>
-        {template.extraGuestPrice && <p className="doc-clause"><strong>Convidado excedente.</strong> {money(template.extraGuestPrice)} por pessoa, conforme o modelo selecionado.</p>}
+        <PaymentDocumentDetails event={event} template={template} />
+        {template.extraGuestPrice && <p className="doc-clause"><strong>Convidado excedente.</strong> {money(template.extraGuestPrice)} por pessoa, conforme o documento selecionado. Pagantes a partir de 6 anos e 12 meses quando assim previsto no material.</p>}
         {template.overtimePenaltyPercent && <p className="doc-clause"><strong>Tempo excedente.</strong> Acréscimo proporcional mais multa de {template.overtimePenaltyPercent}% conforme o modelo de locação.</p>}
         {event.notes && <p className="doc-clause"><strong>Observações específicas.</strong> {event.notes}</p>}
       </section>
@@ -1297,11 +1636,10 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
       <section className="doc-section contract-clauses">
         <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>Cláusulas do modelo {template.name}</h2></div>
         <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>
-        {template.operationalNotes && template.operationalNotes.length > 0 && (
-          <div className="operational-notes"><strong>Orientações operacionais</strong>{template.operationalNotes.map((note) => <p key={note}><Check size={12} />{note}</p>)}</div>
-        )}
+        <TemplateOperationalDetails template={template} />
       </section>
 
+      <div className="contract-location-date">São Paulo, {signatureDate}</div>
       <section className="doc-signatures">
         <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
         <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>
@@ -1558,7 +1896,7 @@ function PublicQuotePage({ token }: { token: string }) {
         <a className="btn btn-primary" href={'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + whatsappText} target="_blank" rel="noreferrer"><Send size={16} /> Falar com o buffet</a>
       </div>
 
-      <QuoteDocument event={quote.event} menu={quote.menu || undefined} services={quote.services} settings={quote.settings} total={quote.total} expiresAt={quote.expiresAt} />
+      <QuoteDocument event={quote.event} menu={quote.menu || undefined} services={quote.services} settings={quote.settings} total={quote.total} expiresAt={quote.expiresAt} templateOverride={quote.contractTemplate} />
     </div>
   )
 }
