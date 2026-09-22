@@ -9,7 +9,7 @@ favicon.type = 'image/png'
 favicon.href = brandMark
 document.head.appendChild(favicon)
 
-document.title = 'Maison Buffet — Eventos & Contratos'
+document.title = 'Buffet Akela — Eventos & Contratos'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -7,8 +7,9 @@ import {
   UserRound, Building2, Phone, Mail, FileText, ChevronDown
 } from 'lucide-react'
 import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from './data'
+import { contractTemplates, getContractTemplate } from './materials'
 import { useLocalStorage, uid } from './storage'
-import type { BuffetEvent, BusinessSettings, MenuItem, Section, ServiceItem } from './types'
+import type { BuffetEvent, BusinessSettings, ContractTemplate, MenuItem, Section, ServiceItem } from './types'
 import { contractSequence, dateBR, eventTotal, money, phoneDigits, shortDate, statusClass } from './utils'
 import { brandMark } from './brand'
 import './styles.css'
@@ -34,6 +35,7 @@ interface RemoteContract {
   services: ServiceItem[]
   settings: BusinessSettings
   total: number
+  contractTemplate?: ContractTemplate
   signature?: NonNullable<BuffetEvent['signature']> | null
 }
 
@@ -62,6 +64,24 @@ function AdminApp() {
 
   const activeContract = events.find((item) => item.id === activeContractId)
   const activeQuote = events.find((item) => item.id === activeQuoteId)
+
+  useEffect(() => {
+    const migrationKey = 'akela-materials-2027-v1'
+    if (window.localStorage.getItem(migrationKey)) return
+
+    const legacyMenuIds = new Set(['menu-classico', 'menu-celebracao', 'menu-signature', 'menu-coquetel'])
+    setMenus((current) => {
+      const custom = current.filter((menu) => !legacyMenuIds.has(menu.id) && !defaultMenus.some((official) => official.id === menu.id))
+      return [...defaultMenus, ...custom]
+    })
+    setEvents((current) => current.map((event) => {
+      if (event.id === 'event-demo-1') return { ...defaultEvents[0] }
+      if (event.id === 'event-demo-2') return { ...event, menuId: 'menu-akela-prata-2027', menuPricePerPerson: event.menuPricePerPerson ?? 0, contractTemplateId: 'akela-services-2027' }
+      return event
+    }))
+    setSettings((current) => current.businessName === 'Maison Buffet' ? defaultSettings : current)
+    window.localStorage.setItem(migrationKey, '1')
+  }, [setMenus, setEvents, setSettings])
 
   useEffect(() => {
     const syncPendingContracts = async () => {
@@ -187,7 +207,7 @@ function Sidebar({ section, onNavigate, onNewEvent, settings }: {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
+        <img className="brand-emblem" src={brandMark} alt="Buffet Akela" />
         <div><strong>{settings.businessName}</strong><span>Eventos & contratos</span></div>
       </div>
       <button className="new-event-button" onClick={onNewEvent}><Plus size={18} /> Novo evento</button>
@@ -230,7 +250,7 @@ function Topbar({ section, onNewEvent }: { section: Section; onNewEvent: () => v
   return (
     <header className="topbar">
       <div>
-        <span className="eyebrow">GESTÃO MAISON</span>
+        <span className="eyebrow">GESTÃO AKELA</span>
         <h1>{current?.label}</h1>
       </div>
       <div className="topbar-actions">
@@ -461,9 +481,11 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
                   <div className="menu-card-badges"><span className={active ? 'status status--success' : 'status status--neutral'}>{active ? 'Ativo' : 'Inativo'}</span><span className="pill">{menu.category}</span></div>
                 </div>
                 <h3>{menu.name}</h3><p>{menu.description}</p>
+                {menu.unitRestriction && <div className="menu-source-note"><MapPin size={13} /> {menu.unitRestriction}</div>}
                 <div className="menu-items">{menu.items.slice(0, 6).map((item) => <span key={item}><Check size={13} />{item}</span>)}</div>
+                {menu.sourceLabel && <small className="menu-source">Fonte: {menu.sourceLabel}</small>}
                 <div className="menu-card-foot">
-                  <div><span>Valor por pessoa</span><strong>{money(menu.pricePerPerson)} <small>/ pessoa</small></strong></div>
+                  <div><span>Valor por pessoa</span><strong>{menu.pricePerPerson > 0 ? money(menu.pricePerPerson) : 'Definir no evento'} <small>{menu.pricePerPerson > 0 ? '/ pessoa' : ''}</small></strong></div>
                   <div className="menu-actions">
                     <button title="Editar" onClick={() => setEditingMenu(menu)}><PenLine size={16} /></button>
                     <button title={active ? 'Desativar' : 'Ativar'} onClick={() => toggleMenu(menu)}>{active ? <X size={16} /> : <CheckCircle2 size={16} />}</button>
@@ -579,13 +601,34 @@ function SettingsView({ settings, setSettings, notify }: {
           <Field label="CNPJ / CPF" value={draft.document} onChange={(v) => field('document', v)} />
           <Field label="Telefone" value={draft.phone} onChange={(v) => field('phone', v)} />
           <Field label="E-mail" value={draft.email} onChange={(v) => field('email', v)} />
+          <Field label="E-mail financeiro" value={draft.financeEmail || ''} onChange={(v) => field('financeEmail', v)} />
           <Field label="Cidade" value={draft.city} onChange={(v) => field('city', v)} />
+          <Field label="Site" value={draft.website || ''} onChange={(v) => field('website', v)} />
+          <Field label="Instagram" value={draft.instagram || ''} onChange={(v) => field('instagram', v)} />
           <div className="field span-2"><label>Endereço</label><input value={draft.address} onChange={(e) => field('address', e.target.value)} /></div>
         </div>
         <div className="form-section-title spaced"><FileText size={18} /><div><strong>Cláusulas padrão</strong><span>Textos utilizados em todos os novos contratos.</span></div></div>
         <div className="field"><label>Condições de pagamento</label><textarea value={draft.paymentTerms} onChange={(e) => field('paymentTerms', e.target.value)} /></div>
         <div className="field"><label>Cancelamento</label><textarea value={draft.cancellationTerms} onChange={(e) => field('cancellationTerms', e.target.value)} /></div>
         <div className="form-actions"><button className="btn btn-primary" onClick={() => { setSettings(draft); notify('Configurações salvas.') }}><Check size={17} /> Salvar alterações</button></div>
+      </div>
+
+      <div className="section-intro materials-heading"><div><span className="eyebrow">MATERIAIS OFICIAIS</span><h2>Modelos contratuais 2027</h2><p>Conteúdo estruturado a partir dos documentos operacionais enviados para a plataforma.</p></div></div>
+      <div className="contract-template-grid">
+        {contractTemplates.map((template) => (
+          <article className="contract-template-card" key={template.id}>
+            <div className="contract-template-card-head"><FileText size={20} /><span className="pill">{template.type === 'space-rental' ? 'Locação' : 'Serviços'}</span></div>
+            <h3>{template.name}</h3>
+            <p>{template.description}</p>
+            <div className="template-facts">
+              <span><strong>{template.clauses.length}</strong> cláusulas estruturadas</span>
+              {template.extraGuestPrice && <span><strong>{money(template.extraGuestPrice)}</strong> convidado excedente</span>}
+              {template.toleranceMinutes && <span><strong>{template.toleranceMinutes} min</strong> tolerância</span>}
+              {template.overtimePenaltyPercent && <span><strong>{template.overtimePenaltyPercent}%</strong> multa por excedente</span>}
+            </div>
+            <small>Fonte: {template.sourceLabel}</small>
+          </article>
+        ))}
       </div>
     </section>
   )
@@ -604,6 +647,8 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     contractNumber: contractSequence(events),
     clientName: '',
     clientDocument: '',
+    clientRg: '',
+    clientAddress: '',
     clientEmail: '',
     clientPhone: '',
     eventType: 'Casamento',
@@ -613,6 +658,10 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     venue: '',
     guests: 50,
     menuId: menus.find((menu) => menu.active !== false)?.id || menus[0]?.id || '',
+    basePrice: 0,
+    menuPricePerPerson: menus.find((menu) => menu.active !== false)?.pricePerPerson || 0,
+    menuSelections: {},
+    contractTemplateId: menus.find((menu) => menu.active !== false)?.contractTemplateId || contractTemplates[0]?.id,
     serviceIds: [],
     notes: '',
     discount: 0,
@@ -623,13 +672,16 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
   })
   const set = <K extends keyof BuffetEvent>(key: K, value: BuffetEvent[K]) => setForm((current) => ({ ...current, [key]: value }))
   const total = eventTotal(form, menus, services)
-  const canContinue = step === 1 ? Boolean(form.clientName && form.eventDate && form.venue && form.guests) : true
+  const selectedMenu = menus.find((menu) => menu.id === form.menuId)
+  const selectedTemplate = getContractTemplate(form.contractTemplateId)
+  const isRental = selectedTemplate.type === 'space-rental'
+  const canContinue = step === 1 ? Boolean(form.clientName && form.eventDate && form.venue && form.guests) : step === 2 ? (isRental ? (form.basePrice ?? 0) >= 0 : Boolean(form.menuId && (form.menuPricePerPerson ?? 0) >= 0)) : true
 
   return (
     <div className="modal-backdrop">
       <div className="wizard">
         <div className="wizard-side">
-          <div className="brand mini"><img className="brand-emblem" src={brandMark} alt="Maison Buffet" /><div><strong>Novo evento</strong><span>{form.contractNumber}</span></div></div>
+          <div className="brand mini"><img className="brand-emblem" src={brandMark} alt="Buffet Akela" /><div><strong>Novo evento</strong><span>{form.contractNumber}</span></div></div>
           <div className="step-list">
             {[['01', 'Cliente & data'], ['02', 'Cardápio'], ['03', 'Serviços & valores']].map((item, index) => (
               <div className={step === index + 1 ? 'step active' : step > index + 1 ? 'step done' : 'step'} key={item[0]}>
@@ -645,10 +697,12 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
             <div className="wizard-content">
               <span className="eyebrow">PASSO 1 DE 3</span><h2>Comece pelo essencial.</h2><p className="lead">Identifique o cliente e reserve a data do evento.</p>
               <div className="form-grid two">
-                <Field label="Nome do cliente *" value={form.clientName} onChange={(v) => set('clientName', v)} placeholder="Ex: Mariana & Lucas" />
+                <Field label="Nome do cliente *" value={form.clientName} onChange={(v) => set('clientName', v)} placeholder="Nome do contratante" />
                 <Field label="CPF / CNPJ" value={form.clientDocument} onChange={(v) => set('clientDocument', v)} placeholder="Documento" />
+                <Field label="RG" value={form.clientRg || ''} onChange={(v) => set('clientRg', v)} placeholder="RG do contratante" />
                 <Field label="E-mail" value={form.clientEmail} onChange={(v) => set('clientEmail', v)} type="email" />
-                <Field label="WhatsApp" value={form.clientPhone} onChange={(v) => set('clientPhone', v)} placeholder="(51) 99999-9999" />
+                <Field label="WhatsApp" value={form.clientPhone} onChange={(v) => set('clientPhone', v)} placeholder="(11) 99999-9999" />
+                <div className="field"><label>Endereço do contratante</label><input value={form.clientAddress || ''} onChange={(e) => set('clientAddress', e.target.value)} placeholder="Rua, número, bairro e cidade" /></div>
                 <div className="field"><label>Tipo de evento</label><select value={form.eventType} onChange={(e) => set('eventType', e.target.value)}>{eventTypes.map((type) => <option key={type}>{type}</option>)}</select></div>
                 <Field label="Data *" value={form.eventDate} onChange={(v) => set('eventDate', v)} type="date" />
                 <Field label="Horário inicial" value={form.startTime} onChange={(v) => set('startTime', v)} type="time" />
@@ -656,25 +710,99 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
                 <div className="field span-2"><label>Local do evento *</label><input value={form.venue} onChange={(e) => set('venue', e.target.value)} placeholder="Salão, endereço ou espaço de eventos" /></div>
                 <Field label="Número de convidados *" value={String(form.guests)} onChange={(v) => set('guests', Math.max(1, Number(v)))} type="number" />
               </div>
+              {form.eventType === 'Aniversário' && (
+                <>
+                  <div className="form-section-title spaced"><Users size={18} /><div><strong>Dados do aniversariante</strong><span>Campos presentes nos materiais oficiais do Buffet Akela.</span></div></div>
+                  <div className="form-grid two compact">
+                    <Field label="Aniversariante" value={form.celebrantName || ''} onChange={(v) => set('celebrantName', v)} />
+                    <Field label="Idade" value={form.celebrantAge || ''} onChange={(v) => set('celebrantAge', v)} />
+                    <Field label="Tema" value={form.theme || ''} onChange={(v) => set('theme', v)} />
+                    <Field label="Pai" value={form.fatherName || ''} onChange={(v) => set('fatherName', v)} />
+                    <Field label="Mãe" value={form.motherName || ''} onChange={(v) => set('motherName', v)} />
+                    <Field label="Irmãos" value={form.siblings || ''} onChange={(v) => set('siblings', v)} />
+                  </div>
+                </>
+              )}
             </div>
           )}
           {step === 2 && (
             <div className="wizard-content">
-              <span className="eyebrow">PASSO 2 DE 3</span><h2>Escolha a experiência.</h2><p className="lead">O valor do cardápio é multiplicado automaticamente pelo número de convidados.</p>
+              <span className="eyebrow">PASSO 2 DE 3</span><h2>Escolha a experiência.</h2><p className="lead">Selecione um cardápio ou utilize o modelo oficial de locação do espaço.</p>
               <div className="wizard-menu-grid">
+                <button className={isRental && !form.menuId ? 'select-menu active rental-option' : 'select-menu rental-option'} onClick={() => setForm((current) => ({
+                  ...current,
+                  menuId: '',
+                  basePrice: current.basePrice || 0,
+                  menuPricePerPerson: 0,
+                  menuSelections: {},
+                  contractTemplateId: 'akela-space-rental-2027'
+                }))}>
+                  <div className="select-check">{isRental && !form.menuId && <Check size={14} />}</div>
+                  <span>LOCAÇÃO · 2027</span><h3>Locação do Espaço</h3><p>Reserva da sede com regras próprias para montagem, desmontagem e tempo excedente.</p>
+                  <small className="menu-unit-note">Jardim Marisa · SP</small>
+                  <div className="select-price"><strong>Definir valor</strong><span>fixo</span></div>
+                </button>
                 {menus.filter((menu) => menu.active !== false).map((menu) => (
-                  <button className={form.menuId === menu.id ? 'select-menu active' : 'select-menu'} key={menu.id} onClick={() => set('menuId', menu.id)}>
+                  <button className={form.menuId === menu.id ? 'select-menu active' : 'select-menu'} key={menu.id} onClick={() => setForm((current) => ({
+                    ...current,
+                    menuId: menu.id,
+                    basePrice: 0,
+                    menuPricePerPerson: menu.pricePerPerson,
+                    menuSelections: {},
+                    contractTemplateId: menu.contractTemplateId || current.contractTemplateId
+                  }))}>
                     <div className="select-check">{form.menuId === menu.id && <Check size={14} />}</div>
                     <span>{menu.category}</span><h3>{menu.name}</h3><p>{menu.description}</p>
-                    <div className="select-price"><strong>{money(menu.pricePerPerson)}</strong><span>/ pessoa</span></div>
+                    {menu.unitRestriction && <small className="menu-unit-note">{menu.unitRestriction}</small>}
+                    <div className="select-price"><strong>{menu.pricePerPerson > 0 ? money(menu.pricePerPerson) : 'Definir valor'}</strong><span>/ pessoa</span></div>
                   </button>
                 ))}
               </div>
+              {isRental && !form.menuId && (
+                <div className="material-config rental-config">
+                  <div className="form-section-title spaced"><FileText size={18} /><div><strong>Configurar locação do espaço</strong><span>Baseado no contrato oficial de locação 2027.</span></div></div>
+                  <div className="form-grid two compact">
+                    <Field label="Valor fixo da locação *" value={String(form.basePrice || 0)} onChange={(v) => set('basePrice', Math.max(0, Number(v)))} type="number" prefix="R$" />
+                    <div className="field"><label>Modelo contratual</label><input value="Locação do Espaço 2027" disabled /></div>
+                  </div>
+                  <div className="rental-rules">
+                    <span><strong>Montagem e desmontagem</strong> dentro do intervalo contratado.</span>
+                    <span><strong>Tempo excedente</strong> acréscimo proporcional + multa de 10%.</span>
+                    <span><strong>Cancelamento</strong> retenção de 50% até 90 dias; após, retenção integral.</span>
+                  </div>
+                </div>
+              )}
+              {selectedMenu && !isRental && (
+                <div className="material-config">
+                  <div className="form-section-title spaced"><UtensilsCrossed size={18} /><div><strong>Configurar {selectedMenu.name}</strong><span>{selectedMenu.sourceLabel || 'Cardápio cadastrado'}</span></div></div>
+                  <div className="form-grid two compact">
+                    <Field label="Valor por pessoa *" value={String(form.menuPricePerPerson ?? selectedMenu.pricePerPerson ?? 0)} onChange={(v) => set('menuPricePerPerson', Math.max(0, Number(v)))} type="number" prefix="R$" />
+                    <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{contractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
+                    {selectedMenu.choiceGroups?.map((group) => (
+                      <div className="field" key={group.id}>
+                        <label>{group.label}{group.required ? ' *' : ''}</label>
+                        <select value={form.menuSelections?.[group.id] || ''} onChange={(e) => set('menuSelections', { ...(form.menuSelections || {}), [group.id]: e.target.value })}>
+                          <option value="">Selecionar</option>
+                          {group.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="material-summary">
+                    {selectedMenu.sections?.map((section) => <div key={section.title}><strong>{section.title}</strong><span>{section.items.join(' · ')}</span></div>)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {step === 3 && (
             <div className="wizard-content">
-              <span className="eyebrow">PASSO 3 DE 3</span><h2>Feche os detalhes.</h2><p className="lead">Inclua serviços, sinal e condições comerciais antes de gerar o contrato.</p>
+              <span className="eyebrow">PASSO 3 DE 3</span><h2>Feche os detalhes.</h2><p className="lead">Inclua opcionais, sinal e confirme o padrão contratual antes de gerar os documentos.</p>
+              <div className="contract-template-preview">
+                <div><FileText size={18} /><span><strong>{selectedTemplate.name}</strong><small>{selectedTemplate.description}</small></span></div>
+                <span className="pill">{selectedTemplate.type === 'space-rental' ? 'Locação' : 'Prestação de serviços'}</span>
+                <p>{selectedTemplate.cancellationSummary}</p>
+              </div>
               <div className="service-select-list">
                 {services.map((service) => {
                   const selected = form.serviceIds.includes(service.id)
@@ -722,7 +850,7 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
           <div className="field span-2"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div className="field span-2"><label>Itens inclusos <span>— separe por vírgulas</span></label><textarea value={items} onChange={(e) => setItems(e.target.value)} /></div>
         </div>
-        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name || !price} onClick={() => onSave({ id: initial?.id || uid('menu'), name, category, description, pricePerPerson: price, items: items.split(',').map((item) => item.trim()).filter(Boolean), active: initial?.active ?? true })}>Salvar cardápio</button></div>
+        <div className="form-actions"><button className="btn btn-quiet" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!name} onClick={() => onSave({ ...(initial || {}), id: initial?.id || uid('menu'), name, category, description, pricePerPerson: price, items: items.split(',').map((item) => item.trim()).filter(Boolean), active: initial?.active ?? true })}>Salvar cardápio</button></div>
       </div>
     </div>
   )
@@ -832,6 +960,37 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
   )
 }
 
+function MenuMaterialDetails({ menu, event }: { menu?: MenuItem; event: BuffetEvent }) {
+  if (!menu) return null
+  const choices = (menu.choiceGroups || [])
+    .map((group) => ({ label: group.label, value: event.menuSelections?.[group.id] }))
+    .filter((item) => item.value)
+
+  return (
+    <>
+      {choices.length > 0 && (
+        <div className="doc-choice-grid">
+          {choices.map((choice) => <div key={choice.label}><span>{choice.label}</span><strong>{choice.value}</strong></div>)}
+        </div>
+      )}
+      {menu.sections && menu.sections.length > 0 && (
+        <div className="doc-menu-sections">
+          {menu.sections.map((section) => (
+            <div key={section.title}><strong>{section.title}</strong><p>{section.items.join(' · ')}</p>{section.note && <small>{section.note}</small>}</div>
+          ))}
+        </div>
+      )}
+      {menu.includedServices && menu.includedServices.length > 0 && (
+        <div className="doc-package-included">
+          <span>INCLUSO NO PACOTE</span>
+          <div>{menu.includedServices.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div>
+        </div>
+      )}
+      {menu.includedNotes?.map((note) => <p className="doc-material-note" key={note}>{note}</p>)}
+    </>
+  )
+}
+
 function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
   event: BuffetEvent
   menu?: MenuItem
@@ -840,7 +999,10 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
   total: number
   expiresAt?: string
 }) {
-  const menuSubtotal = (menu?.pricePerPerson || 0) * event.guests
+  const template = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const isRental = template.type === 'space-rental'
+  const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
+  const menuSubtotal = isRental ? (event.basePrice || 0) : menuPrice * event.guests
   const servicesSubtotal = services.reduce((sum, service) => sum + (service.pricing === 'person' ? service.price * event.guests : service.price), 0)
   const quoteNumber = event.contractNumber.replace('CTR-', 'ORC-')
   const expiry = expiresAt
@@ -850,13 +1012,13 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
   return (
     <article className="quote-document">
       <header className="quote-header">
-        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt="Maison Buffet" /><div><strong>{settings.businessName}</strong><span>Gastronomia & eventos</span></div></div>
+        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt="Buffet Akela" /><div><strong>{settings.businessName}</strong><span>Eventos & buffet</span></div></div>
         <div className="doc-number"><span>ORÇAMENTO</span><strong>{quoteNumber}</strong></div>
       </header>
 
       <section className="quote-hero">
         <div><span className="eyebrow">PROPOSTA PERSONALIZADA</span><h1>Uma experiência pensada<br />para o seu evento.</h1><p>Olá, <strong>{event.clientName}</strong>. Reunimos abaixo a composição, serviços e investimento para {event.eventType.toLowerCase()}.</p></div>
-        <div className="quote-total-highlight"><span>Investimento</span><strong>{money(total)}</strong><small>{money(total / Math.max(1, event.guests))} por convidado</small></div>
+        <div className="quote-total-highlight"><span>Investimento</span><strong>{money(total)}</strong><small>{isRental ? 'valor da locação' : money(total / Math.max(1, event.guests)) + ' por convidado'}</small></div>
       </section>
 
       <section className="quote-section">
@@ -870,14 +1032,22 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
         </div>
       </section>
 
-      <section className="quote-section">
-        <div className="doc-section-head"><span>02</span><h2>Experiência gastronômica</h2></div>
-        <div className="quote-menu">
-          <div><span>{menu?.category || 'Cardápio'}</span><h3>{menu?.name || 'Cardápio a definir'}</h3><p>{menu?.description}</p></div>
-          <div><strong>{money(menu?.pricePerPerson || 0)}</strong><span>por pessoa</span></div>
-        </div>
-        <div className="doc-tags">{menu?.items.map((item) => <span key={item}>{item}</span>)}</div>
-      </section>
+      {!isRental ? (
+        <section className="quote-section">
+          <div className="doc-section-head"><span>02</span><h2>Experiência gastronômica</h2></div>
+          <div className="quote-menu">
+            <div><span>{menu?.category || 'Cardápio'}</span><h3>{menu?.name || 'Cardápio a definir'}</h3><p>{menu?.description}</p></div>
+            <div><strong>{money(menuPrice)}</strong><span>por pessoa</span></div>
+          </div>
+          <div className="doc-tags">{menu?.items.map((item) => <span key={item}>{item}</span>)}</div>
+          <MenuMaterialDetails menu={menu} event={event} />
+        </section>
+      ) : (
+        <section className="quote-section">
+          <div className="doc-section-head"><span>02</span><h2>Locação do espaço</h2></div>
+          <div className="quote-menu"><div><span>LOCAÇÃO · 2027</span><h3>Reserva do espaço Buffet Akela</h3><p>Montagem e desmontagem dentro do período contratado, conforme modelo oficial de locação.</p></div><div><strong>{money(event.basePrice || 0)}</strong><span>valor fixo</span></div></div>
+        </section>
+      )}
 
       <section className="quote-section">
         <div className="doc-section-head"><span>03</span><h2>Serviços e estrutura</h2></div>
@@ -887,7 +1057,7 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt }: {
       <section className="quote-section quote-finance-section">
         <div className="doc-section-head"><span>04</span><h2>Resumo financeiro</h2></div>
         <div className="quote-breakdown">
-          <div><span>Cardápio × {event.guests} convidados</span><strong>{money(menuSubtotal)}</strong></div>
+          <div><span>{isRental ? 'Locação do espaço' : 'Cardápio × ' + event.guests + ' convidados'}</span><strong>{money(menuSubtotal)}</strong></div>
           <div><span>Serviços adicionais</span><strong>{money(servicesSubtotal)}</strong></div>
           {event.discount > 0 && <div className="discount"><span>Desconto comercial</span><strong>− {money(event.discount)}</strong></div>}
           <div className="quote-grand-total"><span>Valor total da proposta</span><strong>{money(total)}</strong></div>
@@ -919,6 +1089,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
   const [syncing, setSyncing] = useState(false)
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
+  const contractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
   const total = eventTotal(event, menus, services)
 
   const syncRemote = async (silent = false) => {
@@ -954,7 +1125,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
       const response = await fetch('/api/contracts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, menu, services: selectedServices, settings, total })
+        body: JSON.stringify({ event, menu, services: selectedServices, settings, total, contractTemplate })
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Não foi possível criar o link.')
@@ -1037,30 +1208,39 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
             <button onClick={copySigningLink}>Copiar link</button>
           </div>
         )}
-        <ContractDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} />
+        <ContractDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />
       </div>
     </div>
   )
 }
 
-function ContractDocument({ event, menu, services, settings, total }: {
+function ContractDocument({ event, menu, services, settings, total, templateOverride }: {
   event: BuffetEvent
   menu?: MenuItem
   services: ServiceItem[]
   settings: BusinessSettings
   total: number
+  templateOverride?: ContractTemplate
 }) {
+  const template = templateOverride || getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
+  const title = template.type === 'space-rental' ? 'Contrato de Locação do Espaço' : 'Contrato de Prestação de Serviços'
+  const subtitle = template.type === 'space-rental' ? 'LOCAÇÃO DO ESPAÇO' : 'PRESTAÇÃO DE SERVIÇOS'
+
   return (
     <article className="contract-document">
       <header className="doc-header">
-        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt="Maison Buffet" /><div><strong>{settings.businessName}</strong><span>Gastronomia & eventos</span></div></div>
+        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt={settings.businessName} /><div><strong>{settings.businessName}</strong><span>Eventos & buffet</span></div></div>
         <div className="doc-number"><span>CONTRATO</span><strong>{event.contractNumber}</strong></div>
       </header>
-      <div className="doc-title"><span>PRESTAÇÃO DE SERVIÇOS</span><h1>Contrato de Buffet<br />e Produção de Evento</h1><p>Documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')} para o evento descrito abaixo.</p></div>
+
+      <div className="doc-title"><span>{subtitle}</span><h1>{title}</h1><p>Modelo: {template.name} · documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')}.</p></div>
+
       <section className="doc-party-grid">
-        <div><span>CONTRATADA</span><strong>{settings.legalName}</strong><p>{settings.document}<br />{settings.address}<br />{settings.city}</p></div>
-        <div><span>CONTRATANTE</span><strong>{event.clientName}</strong><p>{event.clientDocument || 'Documento não informado'}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}</p></div>
+        <div><span>CONTRATADA</span><strong>{settings.legalName}</strong><p>{settings.document}<br />{settings.address}<br />{settings.city}<br />{settings.financeEmail || settings.email}</p></div>
+        <div><span>CONTRATANTE</span><strong>{event.clientName}</strong><p>CPF/CNPJ: {event.clientDocument || 'Não informado'}{event.clientRg ? <><br />RG: {event.clientRg}</> : null}{event.clientAddress ? <><br />{event.clientAddress}</> : null}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}</p></div>
       </section>
+
       <section className="doc-section">
         <div className="doc-section-head"><span>01</span><h2>Dados do evento</h2></div>
         <div className="doc-data-grid">
@@ -1070,34 +1250,63 @@ function ContractDocument({ event, menu, services, settings, total }: {
           <div><span>Convidados</span><strong>{event.guests} pessoas</strong></div>
           <div className="wide"><span>Local</span><strong>{event.venue}</strong></div>
         </div>
+        {event.eventType === 'Aniversário' && (event.celebrantName || event.theme || event.celebrantAge) && (
+          <div className="doc-celebrant-grid">
+            <div><span>Aniversariante</span><strong>{event.celebrantName || '—'}</strong></div>
+            <div><span>Idade</span><strong>{event.celebrantAge || '—'}</strong></div>
+            <div><span>Tema</span><strong>{event.theme || '—'}</strong></div>
+            <div><span>Pai / Mãe</span><strong>{[event.fatherName, event.motherName].filter(Boolean).join(' / ') || '—'}</strong></div>
+            {event.siblings && <div className="wide"><span>Irmãos</span><strong>{event.siblings}</strong></div>}
+          </div>
+        )}
       </section>
+
+      {template.type === 'services' && (
+        <section className="doc-section">
+          <div className="doc-section-head"><span>02</span><h2>Cardápio contratado</h2></div>
+          <div className="doc-menu">
+            <div><span>{menu?.category || 'Cardápio'}</span><h3>{menu?.name || 'Não selecionado'}</h3><p>{menu?.description}</p>{menu?.unitRestriction && <small>{menu.unitRestriction}</small>}</div>
+            <strong>{money(menuPrice)} <small>/ pessoa</small></strong>
+          </div>
+          <div className="doc-tags">{menu?.items.map((item) => <span key={item}>{item}</span>)}</div>
+          <MenuMaterialDetails menu={menu} event={event} />
+        </section>
+      )}
+
       <section className="doc-section">
-        <div className="doc-section-head"><span>02</span><h2>Cardápio contratado</h2></div>
-        <div className="doc-menu">
-          <div><span>{menu?.category || 'Cardápio'}</span><h3>{menu?.name || 'Não selecionado'}</h3><p>{menu?.description}</p></div>
-          <strong>{money(menu?.pricePerPerson || 0)} <small>/ pessoa</small></strong>
-        </div>
-        <div className="doc-tags">{menu?.items.map((item) => <span key={item}>{item}</span>)}</div>
+        <div className="doc-section-head"><span>{template.type === 'services' ? '03' : '02'}</span><h2>{template.type === 'services' ? 'Opcionais e serviços adicionais' : 'Condições da locação'}</h2></div>
+        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}</span><b>{service.pricing === 'person' ? money(service.price) + '/pessoa' : service.price > 0 ? money(service.price) : 'A definir'}</b></div>)}</div> : <p className="doc-muted">Nenhum opcional adicional selecionado.</p>}
       </section>
+
       <section className="doc-section">
-        <div className="doc-section-head"><span>03</span><h2>Serviços incluídos</h2></div>
-        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}</span><b>{service.pricing === 'person' ? money(service.price) + '/pessoa' : money(service.price)}</b></div>)}</div> : <p className="doc-muted">Nenhum serviço adicional selecionado.</p>}
-      </section>
-      <section className="doc-section">
-        <div className="doc-section-head"><span>04</span><h2>Condições comerciais</h2></div>
+        <div className="doc-section-head"><span>{template.type === 'services' ? '04' : '03'}</span><h2>Condições comerciais</h2></div>
         <div className="doc-financial">
+          <div><span>Valor por pessoa</span><strong>{template.type === 'services' ? money(menuPrice) : '—'}</strong></div>
           <div><span>Valor total</span><strong>{money(total)}</strong></div>
           <div><span>Sinal registrado</span><strong>{money(event.deposit)}</strong></div>
           <div><span>Saldo previsto</span><strong>{money(Math.max(0, total - event.deposit))}</strong></div>
         </div>
         <p className="doc-clause"><strong>Pagamento.</strong> {settings.paymentTerms}</p>
-        <p className="doc-clause"><strong>Cancelamento.</strong> {settings.cancellationTerms}</p>
+        <p className="doc-clause"><strong>Cancelamento.</strong> {template.cancellationSummary}</p>
+        <p className="doc-clause"><strong>Formas de pagamento previstas.</strong> {template.paymentMethods.join(', ')}.</p>
+        {template.extraGuestPrice && <p className="doc-clause"><strong>Convidado excedente.</strong> {money(template.extraGuestPrice)} por pessoa, conforme o modelo selecionado.</p>}
+        {template.overtimePenaltyPercent && <p className="doc-clause"><strong>Tempo excedente.</strong> Acréscimo proporcional mais multa de {template.overtimePenaltyPercent}% conforme o modelo de locação.</p>}
         {event.notes && <p className="doc-clause"><strong>Observações específicas.</strong> {event.notes}</p>}
       </section>
+
+      <section className="doc-section contract-clauses">
+        <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>Cláusulas do modelo {template.name}</h2></div>
+        <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>
+        {template.operationalNotes && template.operationalNotes.length > 0 && (
+          <div className="operational-notes"><strong>Orientações operacionais</strong>{template.operationalNotes.map((note) => <p key={note}><Check size={12} />{note}</p>)}</div>
+        )}
+      </section>
+
       <section className="doc-signatures">
         <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
-        <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientDocument}</small></div>
+        <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>
       </section>
+
       {event.signature?.auditHash && (
         <section className="audit-evidence">
           <div><CheckCircle2 size={16} /><strong>Registro eletrônico de assinatura</strong></div>
@@ -1105,7 +1314,7 @@ function ContractDocument({ event, menu, services, settings, total }: {
           <span>SHA-256: {event.signature.auditHash}</span>
         </section>
       )}
-      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}</span><span>{event.contractNumber}</span></footer>
+      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}{settings.website ? ' · ' + settings.website : ''}</span><span>{event.contractNumber}</span></footer>
     </article>
   )
 }
@@ -1243,7 +1452,7 @@ function PublicSigningPage({ token }: { token: string }) {
   }
 
   if (loading) {
-    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Maison Buffet" /><strong>Carregando contrato...</strong><span>Estamos buscando a versão segura do documento.</span></div></div>
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Buffet Akela" /><strong>Carregando contrato...</strong><span>Estamos buscando a versão segura do documento.</span></div></div>
   }
 
   if (error || !contract) {
@@ -1260,7 +1469,7 @@ function PublicSigningPage({ token }: { token: string }) {
     <div className="public-contract-page">
       <header className="public-contract-header no-print">
         <div className="public-brand">
-          <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
+          <img className="brand-emblem" src={brandMark} alt="Buffet Akela" />
           <div><strong>{contract.settings.businessName}</strong><span>Documento para assinatura</span></div>
         </div>
         <div className="public-header-actions">
@@ -1281,7 +1490,7 @@ function PublicSigningPage({ token }: { token: string }) {
         </div>
       )}
 
-      <ContractDocument event={signedEvent} menu={contract.menu || undefined} services={contract.services} settings={contract.settings} total={contract.total} />
+      <ContractDocument event={signedEvent} menu={contract.menu || undefined} services={contract.services} settings={contract.settings} total={contract.total} templateOverride={contract.contractTemplate} />
 
       {!isSigned && (
         <div className="public-sign-sticky no-print">
@@ -1320,7 +1529,7 @@ function PublicQuotePage({ token }: { token: string }) {
   }, [token])
 
   if (loading) {
-    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Maison Buffet" /><strong>Carregando orçamento...</strong><span>Estamos preparando a sua proposta.</span></div></div>
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Buffet Akela" /><strong>Carregando orçamento...</strong><span>Estamos preparando a sua proposta.</span></div></div>
   }
 
   if (error || !quote) {
@@ -1335,7 +1544,7 @@ function PublicQuotePage({ token }: { token: string }) {
     <div className="public-quote-page">
       <header className="public-contract-header no-print">
         <div className="public-brand">
-          <img className="brand-emblem" src={brandMark} alt="Maison Buffet" />
+          <img className="brand-emblem" src={brandMark} alt="Buffet Akela" />
           <div><strong>{quote.settings.businessName}</strong><span>Proposta comercial</span></div>
         </div>
         <div className="public-header-actions">

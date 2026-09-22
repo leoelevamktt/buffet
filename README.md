@@ -39,3 +39,18 @@ A assinatura desta versão é armazenada localmente no navegador. Para operaçã
 - O contrato assinado pode ser impresso ou salvo em PDF pelo navegador
 
 Observação: este fluxo implementa assinatura eletrônica com evidências técnicas. Ele não equivale automaticamente a uma assinatura qualificada com certificado ICP-Brasil.
+
+
+## Materiais oficiais Buffet Akela 2027
+
+A plataforma inclui, como dados estruturados:
+- Cardápio Infinity Akela 2027
+- Cardápio Prata 2027
+- Cardápio Bronze / Unidade II
+- Cardápio Churrasco / Unidade II
+- Cardápio Boteco 2027
+- Contrato de Prestação de Serviços Akela 2027
+- Contrato específico Bronze / Unidade II
+- Contrato de Locação do Espaço 2027
+
+Os valores de cardápio são definidos por evento quando não constam no material de origem. As escolhas do pacote (prato principal, massa, molho, doces e perfil alimentar, conforme cada cardápio) ficam registradas no evento, orçamento e contrato. O modelo contratual selecionado é congelado no registro enviado para assinatura.

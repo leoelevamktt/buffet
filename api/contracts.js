@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = req.body || {}
-      const { event, menu, services, settings, total } = body
+      const { event, menu, services, settings, total, contractTemplate } = body
 
       if (!event?.id || !event?.clientName || !event?.eventDate || !settings?.businessName) {
         return res.status(400).json({ error: 'Dados obrigatórios do contrato não foram informados.' })
@@ -54,6 +54,7 @@ export default async function handler(req, res) {
         services: Array.isArray(services) ? services : [],
         settings,
         total: Number(total) || 0,
+        contractTemplate: contractTemplate || null,
         signature: null
       }
 

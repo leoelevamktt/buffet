@@ -15,7 +15,7 @@ export const shortDate = (value: string) => {
 
 export const eventTotal = (event: BuffetEvent, menus: MenuItem[], services: ServiceItem[]) => {
   const menu = menus.find((item) => item.id === event.menuId)
-  const menuTotal = (menu?.pricePerPerson || 0) * event.guests
+  const menuTotal = event.menuId ? (event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0) * event.guests : (event.basePrice || 0)
   const servicesTotal = event.serviceIds.reduce((sum, id) => {
     const service = services.find((item) => item.id === id)
     if (!service) return sum

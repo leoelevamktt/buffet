@@ -1,6 +1,19 @@
 export type ContractStatus = 'Rascunho' | 'Enviado' | 'Assinado'
 export type EventStatus = 'Proposta' | 'Confirmado' | 'Concluído'
 
+export interface MenuChoiceGroup {
+  id: string
+  label: string
+  options: string[]
+  required?: boolean
+}
+
+export interface MenuSection {
+  title: string
+  items: string[]
+  note?: string
+}
+
 export interface MenuItem {
   id: string
   name: string
@@ -9,6 +22,13 @@ export interface MenuItem {
   category: string
   items: string[]
   active?: boolean
+  sourceLabel?: string
+  unitRestriction?: string
+  sections?: MenuSection[]
+  includedServices?: string[]
+  includedNotes?: string[]
+  choiceGroups?: MenuChoiceGroup[]
+  contractTemplateId?: string
 }
 
 export interface ServiceItem {
@@ -17,6 +37,22 @@ export interface ServiceItem {
   description: string
   price: number
   pricing: 'fixed' | 'person'
+}
+
+export interface ContractTemplate {
+  id: string
+  name: string
+  description: string
+  sourceLabel: string
+  type: 'services' | 'space-rental'
+  financialEmail: string
+  cancellationSummary: string
+  paymentMethods: string[]
+  toleranceMinutes?: number
+  extraGuestPrice?: number
+  overtimePenaltyPercent?: number
+  clauses: string[]
+  operationalNotes?: string[]
 }
 
 export interface Signature {
@@ -36,6 +72,8 @@ export interface BuffetEvent {
   contractNumber: string
   clientName: string
   clientDocument: string
+  clientRg?: string
+  clientAddress?: string
   clientEmail: string
   clientPhone: string
   eventType: string
@@ -44,7 +82,17 @@ export interface BuffetEvent {
   endTime: string
   venue: string
   guests: number
+  celebrantName?: string
+  celebrantAge?: string
+  theme?: string
+  fatherName?: string
+  motherName?: string
+  siblings?: string
   menuId: string
+  basePrice?: number
+  menuPricePerPerson?: number
+  menuSelections?: Record<string, string>
+  contractTemplateId?: string
   serviceIds: string[]
   notes: string
   discount: number
@@ -67,8 +115,11 @@ export interface BusinessSettings {
   document: string
   phone: string
   email: string
+  financeEmail?: string
   address: string
   city: string
+  website?: string
+  instagram?: string
   paymentTerms: string
   cancellationTerms: string
 }

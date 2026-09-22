@@ -51,6 +51,7 @@ export default async function handler(req, res) {
         services: contract.services,
         settings: contract.settings,
         total: contract.total,
+        contractTemplate: contract.contractTemplate,
         signerName: String(signerName).trim(),
         signerDocument: String(signerDocument).trim(),
         dataUrl,
