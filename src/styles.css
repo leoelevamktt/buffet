@@ -441,6 +441,8 @@ td strong{font-size:11px}
   .contract-document .clause-list p{font-size:6.2pt;line-height:1.32;margin:0 0 1.4mm;text-align:justify;break-inside:auto}
   .contract-document .operational-notes{padding:1.8mm;margin-top:2mm}
   .contract-document .operational-notes p{font-size:6.1pt;line-height:1.3;margin:1mm 0 0}
+  .doc-section-head{break-after:avoid-page!important;page-break-after:avoid!important}
+  .doc-section-head + .doc-financial,.doc-section-head + .doc-data-grid,.doc-section-head + .doc-menu,.doc-section-head + .clause-list{break-before:avoid-page!important;page-break-before:avoid!important}
   .doc-party-grid,.doc-menu,.quote-menu,.doc-financial,.doc-service-list>div,.doc-signatures,.audit-evidence,.quote-breakdown,.quote-validity,.doc-choice-grid>div,.doc-menu-sections>div{break-inside:avoid!important}
   p,li{orphans:3;widows:3}
   .signature-backdrop{display:none!important}
