@@ -1,4 +1,4 @@
-import { get, put } from '@vercel/blob'
+import { del, get, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
 
 const pathnameFor = (token) => 'contracts/' + token + '.json'
@@ -28,6 +28,16 @@ export default async function handler(req, res) {
       if (!contract) return res.status(404).json({ error: 'Contrato não encontrado ou link inválido.' })
 
       return res.status(200).json({ contract })
+    }
+
+    if (req.method === 'DELETE') {
+      const token = String(req.query.token || '')
+      if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
+      const contract = await readContract(token)
+      if (!contract) return res.status(204).end()
+      if (contract.status === 'signed') return res.status(409).json({ error: 'Contrato assinado não pode ser revogado.' })
+      await del(pathnameFor(token))
+      return res.status(204).end()
     }
 
     if (req.method === 'POST') {
@@ -71,7 +81,7 @@ export default async function handler(req, res) {
       })
     }
 
-    res.setHeader('Allow', 'GET, POST')
+    res.setHeader('Allow', 'GET, POST, DELETE')
     return res.status(405).json({ error: 'Método não permitido.' })
   } catch (error) {
     console.error('contracts_api_error', error)

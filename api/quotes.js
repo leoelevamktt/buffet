@@ -1,4 +1,4 @@
-import { get, put } from '@vercel/blob'
+import { del, get, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
 
 const pathnameFor = (token) => 'quotes/' + token + '.json'
@@ -24,6 +24,13 @@ export default async function handler(req, res) {
       const quote = await readQuote(token)
       if (!quote) return res.status(404).json({ error: 'Orçamento não encontrado.' })
       return res.status(200).json({ quote })
+    }
+
+    if (req.method === 'DELETE') {
+      const token = String(req.query.token || '')
+      if (!token || token.length < 20) return res.status(400).json({ error: 'Link de orçamento inválido.' })
+      await del(pathnameFor(token))
+      return res.status(204).end()
     }
 
     if (req.method === 'POST') {
@@ -57,7 +64,7 @@ export default async function handler(req, res) {
       return res.status(201).json({ token, url: publicUrl(req, token), quote })
     }
 
-    res.setHeader('Allow', 'GET, POST')
+    res.setHeader('Allow', 'GET, POST, DELETE')
     return res.status(405).json({ error: 'Método não permitido.' })
   } catch (error) {
     console.error('quotes_api_error', error)

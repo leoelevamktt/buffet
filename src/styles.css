@@ -401,6 +401,23 @@ td strong{font-size:11px}
 .source-verbatim summary{cursor:pointer;font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f685f}
 .source-verbatim-head{display:flex;gap:6px;align-items:center;margin:10px 0 7px;font-size:8px;color:#7a817a}
 .source-verbatim pre{white-space:pre-wrap;word-break:break-word;background:#f7f5ef;border:1px solid #dfdcd4;padding:10px;max-height:360px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:7px;line-height:1.45;color:#505750}
+.contract-model-bar{width:min(850px,calc(100% - 36px));margin:18px auto -12px;background:#f7f4ed;border:1px solid #d8d4ca;padding:12px 14px;display:grid;grid-template-columns:1fr minmax(260px,360px) auto;align-items:center;gap:12px}
+.contract-model-bar>div{display:flex;align-items:center;gap:9px}.contract-model-bar>div span{display:flex;flex-direction:column}.contract-model-bar strong{font-size:9px}.contract-model-bar small{font-size:7.5px;color:#7d837d;margin-top:2px}
+.contract-model-bar select{height:38px;border:1px solid var(--line);background:#fff;padding:0 10px;font-size:9px;color:var(--ink)}
+.contract-custom-badge{display:inline-flex;align-items:center;gap:5px;background:#e8efe9;color:#35513b;border:1px solid #c8d8cb;padding:6px 8px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.contract-template-picker{grid-column:1/-1;margin-top:8px}.contract-template-picker small{display:block;margin-top:5px;font-size:7.5px;color:#7b817b;line-height:1.4}
+.contract-editor-overlay{position:fixed;inset:0;z-index:140;background:#d9d8d4;overflow:hidden}
+.contract-editor-shell{height:100vh;display:grid;grid-template-rows:auto auto 1fr}
+.contract-editor-header{background:#17211b;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.contract-editor-header>div:first-child{display:flex;align-items:flex-start;gap:18px}.contract-editor-header .back-button{margin-top:3px}.contract-editor-header h2{font-family:Georgia,serif;font-size:22px;font-weight:400;margin:4px 0}.contract-editor-header p{font-size:8px;color:rgba(255,255,255,.58);margin:0;max-width:580px}
+.contract-editor-actions{display:flex;gap:8px;align-items:center}.contract-editor-header .btn-quiet{color:#fff;border-color:rgba(255,255,255,.22)}
+.word-toolbar{min-height:52px;background:#f6f5f2;border-bottom:1px solid #cfcfc9;display:flex;align-items:center;gap:10px;padding:7px 16px;box-shadow:0 2px 5px rgba(30,36,31,.05);z-index:2}
+.word-toolbar select{height:34px;border:1px solid #d0cec8;background:#fff;padding:0 10px;font-size:9px;color:#303730}
+.word-tool-group{display:flex;align-items:center;gap:3px;flex-wrap:wrap}.word-tool-group button{width:34px;height:34px;border:1px solid transparent;background:transparent;color:#4e564f;display:grid;place-items:center;border-radius:4px}.word-tool-group button:hover{background:#e9e7e1;border-color:#d4d1ca;color:#17211b}
+.contract-editor-canvas{overflow:auto;padding:28px 20px 70px;background:#d7d7d2}
+.contract-editor-page{width:min(820px,calc(100vw - 40px));min-height:1120px;margin:0 auto;background:#fff;box-shadow:0 8px 26px rgba(22,29,24,.14);padding:72px 76px;outline:none;font-family:Arial,sans-serif;font-size:12px;line-height:1.65;color:#242a25}
+.contract-editor-page h1,.contract-editor-page h2,.contract-editor-page h3{font-family:Georgia,serif;font-weight:400;color:#1f2721}.contract-editor-page h1{font-size:30px}.contract-editor-page h2{font-size:23px}.contract-editor-page h3{font-size:17px}.contract-editor-page p{margin:0 0 12px}.contract-editor-page ul,.contract-editor-page ol{padding-left:24px}.contract-editor-page blockquote{border-left:3px solid #b8a27e;margin:12px 0;padding:8px 14px;background:#f8f5ef}
+.custom-contract-rich{font-size:8px;line-height:1.55;color:#566057}.custom-contract-rich h1,.custom-contract-rich h2,.custom-contract-rich h3{font-family:Georgia,serif;font-weight:400;color:#202820;margin:10px 0 6px}.custom-contract-rich h1{font-size:19px}.custom-contract-rich h2{font-size:16px}.custom-contract-rich h3{font-size:12px}.custom-contract-rich p{margin:0 0 7px}.custom-contract-rich ul,.custom-contract-rich ol{padding-left:18px;margin:5px 0 8px}.custom-contract-rich blockquote{border-left:2px solid #b8a27e;padding:6px 9px;margin:7px 0;background:#f8f5ef}
 .mobile-nav{display:none}
 @media(max-width:1100px){
   .metric-grid{grid-template-columns:repeat(2,1fr)}
@@ -420,6 +437,8 @@ td strong{font-size:11px}
   .material-summary,.doc-menu-sections,.doc-choice-grid,.doc-package-included>div,.doc-package-excluded>div,.rental-rules,.material-check-grid,.doc-payment-summary{grid-template-columns:1fr}
   .payment-schedule-head,.payment-schedule-row{grid-template-columns:34px 1fr}.payment-schedule-head span:nth-child(3),.payment-schedule-head span:nth-child(4){display:none}.payment-schedule-row input:nth-child(3),.payment-schedule-row input:nth-child(4){grid-column:2}.payment-config{padding:12px}
   .contract-template-preview{grid-template-columns:1fr}.contract-template-preview>.pill{justify-self:start}
+  .contract-model-bar{width:calc(100% - 16px);margin:10px auto -2px;grid-template-columns:1fr;padding:11px}.contract-model-bar select{width:100%}.contract-custom-badge{justify-self:start}
+  .contract-editor-header{padding:12px;flex-direction:column}.contract-editor-header>div:first-child{width:100%;flex-direction:column;gap:8px}.contract-editor-actions{width:100%}.contract-editor-actions .btn{flex:1}.word-toolbar{overflow:auto;align-items:flex-start}.word-tool-group{flex-wrap:nowrap}.contract-editor-canvas{padding:10px 6px 40px}.contract-editor-page{width:100%;min-height:100vh;padding:38px 22px}
   .doc-celebrant-grid{grid-template-columns:1fr 1fr}.doc-celebrant-grid .wide{grid-column:span 2}.clause-list{columns:1}
   .contract-card{grid-template-columns:38px 1fr 20px}.contract-value{display:none}.calendar-panel{padding:12px}.calendar-head{align-items:flex-start;gap:10px;flex-direction:column}.calendar-day{min-height:76px;padding:4px}.calendar-event{padding:4px}.calendar-event strong{display:none}
   .form-grid.two{grid-template-columns:1fr}.span-2{grid-column:span 1}.form-panel{padding:18px}

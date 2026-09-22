@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Menu as MenuIcon, Plus, Search, Settings, Sparkles, Users,
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
-  UserRound, Building2, Phone, Mail, FileText, ChevronDown
+  UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting
 } from 'lucide-react'
 import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from './data'
 import { contractTemplates, getContractTemplate } from './materials'
@@ -52,6 +53,42 @@ interface RemoteQuote {
   contractTemplate?: ContractTemplate
 }
 
+function sanitizeRichHtml(html: string) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html')
+  const allowed = new Set(['DIV', 'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'SPAN', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD'])
+  const walk = (node: Element) => {
+    Array.from(node.children).forEach((child) => {
+      if (!allowed.has(child.tagName)) {
+        const fragment = doc.createDocumentFragment()
+        while (child.firstChild) fragment.appendChild(child.firstChild)
+        child.replaceWith(fragment)
+        return
+      }
+      Array.from(child.attributes).forEach((attribute) => {
+        if (attribute.name !== 'style') child.removeAttribute(attribute.name)
+      })
+      if (child.hasAttribute('style')) {
+        const textAlign = (child as HTMLElement).style.textAlign
+        child.removeAttribute('style')
+        if (['left', 'center', 'right', 'justify'].includes(textAlign)) (child as HTMLElement).style.textAlign = textAlign
+      }
+      walk(child)
+    })
+  }
+  const root = doc.body.firstElementChild as HTMLElement
+  walk(root)
+  return root.innerHTML
+}
+
+function defaultContractEditorHtml(template: ContractTemplate) {
+  const clauses = template.clauses.map((clause, index) => '<p><strong>' + (index + 1) + '.</strong> ' + clause + '</p>').join('')
+  const operational = template.operationalNotes?.length
+    ? '<h3>Orientações operacionais</h3><ul>' + template.operationalNotes.map((item) => '<li>' + item + '</li>').join('') + '</ul>'
+    : ''
+  return '<h2>' + template.name + '</h2><p><em>Edite abaixo o conteúdo contratual antes do envio ao cliente.</em></p>' + clauses + operational
+}
+
 function AdminApp() {
   const [section, setSection] = useState<Section>('dashboard')
   const [events, setEvents] = useLocalStorage<BuffetEvent[]>('maison-events', defaultEvents)
@@ -59,6 +96,7 @@ function AdminApp() {
   const [services, setServices] = useLocalStorage<ServiceItem[]>('maison-services', defaultServices)
   const [settings, setSettings] = useLocalStorage<BusinessSettings>('maison-settings', defaultSettings)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
   const [activeContractId, setActiveContractId] = useState<string | null>(null)
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
@@ -66,6 +104,7 @@ function AdminApp() {
 
   const activeContract = events.find((item) => item.id === activeContractId)
   const activeQuote = events.find((item) => item.id === activeQuoteId)
+  const editingEvent = events.find((item) => item.id === editingEventId)
 
   useEffect(() => {
     const migrationKey = 'akela-materials-2027-v2-complete'
@@ -151,6 +190,48 @@ function AdminApp() {
     setSection('events')
   }
 
+  const revokeSharedSnapshots = async (event: BuffetEvent) => {
+    const requests: Promise<Response>[] = []
+    if (event.shareToken && event.contractStatus !== 'Assinado') {
+      requests.push(fetch('/api/contracts?token=' + encodeURIComponent(event.shareToken), { method: 'DELETE' }))
+    }
+    if (event.quoteToken) {
+      requests.push(fetch('/api/quotes?token=' + encodeURIComponent(event.quoteToken), { method: 'DELETE' }))
+    }
+    if (requests.length) await Promise.allSettled(requests)
+  }
+
+  const openEditEvent = (id: string) => {
+    const event = events.find((item) => item.id === id)
+    if (!event) return
+    if (event.contractStatus === 'Assinado') {
+      notify('Este evento possui contrato assinado. O documento assinado foi preservado e não pode ser alterado.')
+      return
+    }
+    setEditingEventId(id)
+  }
+
+  const saveEditedEvent = async (event: BuffetEvent) => {
+    const previous = events.find((item) => item.id === event.id)
+    if (!previous) return
+    await revokeSharedSnapshots(previous)
+    const templateChanged = previous.contractTemplateId !== event.contractTemplateId
+    const updated: BuffetEvent = {
+      ...event,
+      contractStatus: 'Rascunho',
+      shareToken: undefined,
+      shareUrl: undefined,
+      sharedAt: undefined,
+      quoteToken: undefined,
+      quoteUrl: undefined,
+      quoteSharedAt: undefined,
+      ...(templateChanged ? { customContractHtml: undefined, customContractUpdatedAt: undefined } : {})
+    }
+    setEvents((current) => current.map((item) => item.id === event.id ? updated : item))
+    setEditingEventId(null)
+    notify('Evento atualizado. Links antigos foram invalidados para preservar a versão correta.')
+  }
+
   const deleteEvent = (id: string) => {
     if (!window.confirm('Excluir este evento e o contrato relacionado?')) return
     setEvents((current) => current.filter((item) => item.id !== id))
@@ -171,7 +252,7 @@ function AdminApp() {
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
           )}
           {section === 'events' && (
-            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
+            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onEdit={openEditEvent} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
           )}
           {section === 'menus' && (
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
@@ -188,6 +269,9 @@ function AdminApp() {
 
       {wizardOpen && (
         <EventWizard events={events} menus={menus} services={services} onClose={() => setWizardOpen(false)} onSave={createEvent} />
+      )}
+      {editingEvent && (
+        <EventWizard events={events} menus={menus} services={services} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
       )}
       {menuEditorOpen && (
         <MenuEditor onClose={() => setMenuEditorOpen(false)} onSave={(menu) => {
@@ -420,11 +504,12 @@ function Metric({ icon: Icon, label, value, note }: { icon: typeof Users; label:
   )
 }
 
-function EventsView({ events, menus, services, onNew, onOpenContract, onOpenQuote, onDelete }: {
+function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, onOpenQuote, onDelete }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onNew: () => void
+  onEdit: (id: string) => void
   onOpenContract: (id: string) => void
   onOpenQuote: (id: string) => void
   onDelete: (id: string) => void
@@ -454,7 +539,7 @@ function EventsView({ events, menus, services, onNew, onOpenContract, onOpenQuot
                 <td>{event.guests}</td>
                 <td><strong>{money(eventTotal(event, menus, services))}</strong></td>
                 <td><span className={statusClass(event.contractStatus)}>{event.contractStatus}</span></td>
-                <td><div className="row-actions"><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
+                <td><div className="row-actions"><button title="Editar evento" onClick={() => onEdit(event.id)}><Pencil size={17} /></button><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
               </tr>
             ))}
           </tbody>
@@ -685,15 +770,22 @@ function SettingsView({ settings, setSettings, notify }: {
   )
 }
 
-function EventWizard({ events, menus, services, onClose, onSave }: {
+function EventWizard({ events, menus, services, onClose, onSave, initial }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onClose: () => void
-  onSave: (event: BuffetEvent) => void
+  onSave: (event: BuffetEvent) => void | Promise<void>
+  initial?: BuffetEvent
 }) {
+  const editing = Boolean(initial)
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState<BuffetEvent>({
+  const [form, setForm] = useState<BuffetEvent>(() => initial ? {
+    ...initial,
+    menuSelections: { ...(initial.menuSelections || {}) },
+    serviceIds: [...initial.serviceIds],
+    paymentSchedule: initial.paymentSchedule?.map((entry) => ({ ...entry })) || Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
+  } : ({
     id: uid('event'),
     contractNumber: contractSequence(events),
     clientName: '',
@@ -723,11 +815,12 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     status: 'Proposta',
     contractStatus: 'Rascunho',
     createdAt: new Date().toISOString()
-  })
+  }))
   const set = <K extends keyof BuffetEvent>(key: K, value: BuffetEvent[K]) => setForm((current) => ({ ...current, [key]: value }))
   const total = eventTotal(form, menus, services)
   const selectedMenu = menus.find((menu) => menu.id === form.menuId)
   const selectedTemplate = getContractTemplate(form.contractTemplateId)
+  const compatibleContractTemplates = contractTemplates.filter((template) => form.menuId ? template.type === 'services' : template.type === 'space-rental')
   const isRental = selectedTemplate.type === 'space-rental'
   const requiredChoicesComplete = (selectedMenu?.choiceGroups || []).filter((group) => group.required).every((group) => {
     const value = form.menuSelections?.[group.id]
@@ -748,7 +841,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
     <div className="modal-backdrop">
       <div className="wizard">
         <div className="wizard-side">
-          <div className="brand mini"><img className="brand-emblem" src={brandMark} alt="Buffet Akela" /><div><strong>Novo evento</strong><span>{form.contractNumber}</span></div></div>
+          <div className="brand mini"><img className="brand-emblem" src={brandMark} alt="Buffet Akela" /><div><strong>{editing ? 'Editar evento' : 'Novo evento'}</strong><span>{form.contractNumber}</span></div></div>
           <div className="step-list">
             {[['01', 'Cliente & data'], ['02', 'Cardápio'], ['03', 'Serviços & valores']].map((item, index) => (
               <div className={step === index + 1 ? 'step active' : step > index + 1 ? 'step done' : 'step'} key={item[0]}>
@@ -844,7 +937,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
                   <div className="form-section-title spaced"><UtensilsCrossed size={18} /><div><strong>Configurar {selectedMenu.name}</strong><span>{selectedMenu.sourceLabel || 'Cardápio cadastrado'}</span></div></div>
                   <div className="form-grid two compact">
                     <Field label="Valor por pessoa *" value={String(form.menuPricePerPerson ?? selectedMenu.pricePerPerson ?? 0)} onChange={(v) => set('menuPricePerPerson', Math.max(0, Number(v)))} type="number" prefix="R$" />
-                    <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{contractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
+                    <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{compatibleContractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
                     {selectedMenu.choiceGroups?.map((group) => {
                       const currentValue = form.menuSelections?.[group.id]
                       if (group.multiple) {
@@ -901,6 +994,13 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
                 <div><FileText size={18} /><span><strong>{selectedTemplate.name}</strong><small>{selectedTemplate.description}</small></span></div>
                 <span className="pill">{selectedTemplate.type === 'space-rental' ? 'Locação' : 'Prestação de serviços'}</span>
                 <p>{selectedTemplate.cancellationSummary}</p>
+                <div className="field span-2 contract-template-picker">
+                  <label>Contrato a utilizar *</label>
+                  <select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>
+                    {compatibleContractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+                  </select>
+                  <small>Você pode escolher o padrão contratual antes de salvar o evento. O texto poderá ser personalizado depois no editor do contrato.</small>
+                </div>
               </div>
               <div className="service-select-list">
                 {services.map((service) => {
@@ -957,7 +1057,7 @@ function EventWizard({ events, menus, services, onClose, onSave }: {
           )}
           <div className="wizard-actions">
             <button className="btn btn-quiet" onClick={() => step === 1 ? onClose() : setStep(step - 1)}>{step === 1 ? 'Cancelar' : 'Voltar'}</button>
-            {step < 3 ? <button className="btn btn-primary" disabled={!canContinue} onClick={() => setStep(step + 1)}>Continuar <ChevronRight size={17} /></button> : <button className="btn btn-primary" onClick={() => onSave(form)}><FileSignature size={17} /> Gerar evento e contrato</button>}
+            {step < 3 ? <button className="btn btn-primary" disabled={!canContinue} onClick={() => setStep(step + 1)}>Continuar <ChevronRight size={17} /></button> : <button className="btn btn-primary" onClick={() => onSave(form)}><FileSignature size={17} /> {editing ? 'Salvar alterações' : 'Gerar evento e contrato'}</button>}
           </div>
         </div>
       </div>
@@ -1407,6 +1507,93 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
   )
 }
 
+function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
+  template: ContractTemplate
+  initialHtml?: string
+  onClose: () => void
+  onSave: (html: string) => void | Promise<void>
+}) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (editorRef.current) editorRef.current.innerHTML = sanitizeRichHtml(initialHtml || defaultContractEditorHtml(template))
+  }, [initialHtml, template.id])
+
+  const command = (name: string, value?: string) => {
+    editorRef.current?.focus()
+    document.execCommand(name, false, value)
+  }
+
+  const save = async () => {
+    if (!editorRef.current) return
+    setSaving(true)
+    try {
+      await onSave(sanitizeRichHtml(editorRef.current.innerHTML))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const restore = () => {
+    if (!window.confirm('Restaurar o texto deste contrato para o modelo original?')) return
+    if (editorRef.current) editorRef.current.innerHTML = sanitizeRichHtml(defaultContractEditorHtml(template))
+  }
+
+  const tools = [
+    { title: 'Negrito', icon: Bold, command: 'bold' },
+    { title: 'Itálico', icon: Italic, command: 'italic' },
+    { title: 'Sublinhado', icon: Underline, command: 'underline' },
+    { title: 'Alinhar à esquerda', icon: AlignLeft, command: 'justifyLeft' },
+    { title: 'Centralizar', icon: AlignCenter, command: 'justifyCenter' },
+    { title: 'Alinhar à direita', icon: AlignRight, command: 'justifyRight' },
+    { title: 'Lista com marcadores', icon: List, command: 'insertUnorderedList' },
+    { title: 'Lista numerada', icon: ListOrdered, command: 'insertOrderedList' },
+    { title: 'Desfazer', icon: Undo2, command: 'undo' },
+    { title: 'Refazer', icon: Redo2, command: 'redo' },
+    { title: 'Limpar formatação', icon: RemoveFormatting, command: 'removeFormat' }
+  ]
+
+  return (
+    <div className="contract-editor-overlay">
+      <div className="contract-editor-shell">
+        <header className="contract-editor-header">
+          <div>
+            <button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar ao contrato</button>
+            <div><span className="eyebrow">EDITOR DE CONTRATO</span><h2>{template.name}</h2><p>Edite o conteúdo como em um processador de texto. A versão salva será usada neste evento.</p></div>
+          </div>
+          <div className="contract-editor-actions">
+            <button className="btn btn-quiet" onClick={restore}><FileText size={16} /> Restaurar modelo</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}><Check size={16} /> {saving ? 'Salvando...' : 'Salvar contrato'}</button>
+          </div>
+        </header>
+        <div className="word-toolbar">
+          <select aria-label="Estilo do texto" defaultValue="P" onChange={(e) => command('formatBlock', e.target.value)}>
+            <option value="P">Texto normal</option>
+            <option value="H1">Título 1</option>
+            <option value="H2">Título 2</option>
+            <option value="H3">Título 3</option>
+          </select>
+          <div className="word-tool-group">
+            {tools.map(({ title, icon: Icon, command: action }) => (
+              <button key={title} title={title} onMouseDown={(e) => { e.preventDefault(); command(action) }}><Icon size={16} /></button>
+            ))}
+          </div>
+        </div>
+        <div className="contract-editor-canvas">
+          <div
+            ref={editorRef}
+            className="contract-editor-page"
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ContractModal({ event, menus, services, settings, onClose, onUpdate, notify }: {
   event: BuffetEvent
   menus: MenuItem[]
@@ -1418,6 +1605,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
 }) {
   const [sharing, setSharing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [editingContract, setEditingContract] = useState(false)
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
   const baseContractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
@@ -1426,6 +1614,50 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
     sourceText: getSourceMaterialText(baseContractTemplate.id)?.text || baseContractTemplate.sourceText
   }
   const total = eventTotal(event, menus, services)
+  const compatibleTemplates = contractTemplates.filter((template) => menu ? template.type === 'services' : template.type === 'space-rental')
+
+  const revokeGeneratedLinks = async () => {
+    const requests: Promise<Response>[] = []
+    if (event.shareToken && event.contractStatus !== 'Assinado') requests.push(fetch('/api/contracts?token=' + encodeURIComponent(event.shareToken), { method: 'DELETE' }))
+    if (event.quoteToken) requests.push(fetch('/api/quotes?token=' + encodeURIComponent(event.quoteToken), { method: 'DELETE' }))
+    if (requests.length) await Promise.allSettled(requests)
+  }
+
+  const changeContractTemplate = async (templateId: string) => {
+    if (event.contractStatus === 'Assinado') return
+    await revokeGeneratedLinks()
+    onUpdate({
+      contractTemplateId: templateId,
+      customContractHtml: undefined,
+      customContractUpdatedAt: undefined,
+      contractStatus: 'Rascunho',
+      shareToken: undefined,
+      shareUrl: undefined,
+      sharedAt: undefined,
+      quoteToken: undefined,
+      quoteUrl: undefined,
+      quoteSharedAt: undefined
+    })
+    notify('Modelo de contrato alterado. Links anteriores foram invalidados.')
+  }
+
+  const saveCustomContract = async (html: string) => {
+    if (event.contractStatus === 'Assinado') return
+    await revokeGeneratedLinks()
+    onUpdate({
+      customContractHtml: html,
+      customContractUpdatedAt: new Date().toISOString(),
+      contractStatus: 'Rascunho',
+      shareToken: undefined,
+      shareUrl: undefined,
+      sharedAt: undefined,
+      quoteToken: undefined,
+      quoteUrl: undefined,
+      quoteSharedAt: undefined
+    })
+    setEditingContract(false)
+    notify('Contrato personalizado salvo. Gere um novo link quando estiver pronto.')
+  }
 
   const syncRemote = async (silent = false) => {
     if (!event.shareToken) return
@@ -1537,6 +1769,13 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
             <button className="btn btn-primary" onClick={openSigning} disabled={sharing || event.contractStatus === 'Assinado'}><PenLine size={17} /> {event.contractStatus === 'Assinado' ? 'Assinado' : event.shareUrl ? 'Abrir assinatura' : 'Gerar link'}</button>
           </div>
         </div>
+        <div className="contract-model-bar no-print">
+          <div><FileText size={17} /><span><strong>Modelo do contrato</strong><small>Escolha o padrão que será usado neste evento.</small></span></div>
+          <select value={event.contractTemplateId || contractTemplate.id} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado'}>
+            {compatibleTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+          </select>
+          {event.customContractHtml && <span className="contract-custom-badge"><Pencil size={13} /> Personalizado</span>}
+        </div>
         {event.shareUrl && event.contractStatus !== 'Assinado' && (
           <div className="share-banner no-print">
             <div><CheckCircle2 size={17} /><span><strong>Contrato disponível para assinatura</strong><small>Envie o link ao cliente. O painel verifica automaticamente quando ele assinar.</small></span></div>
@@ -1545,6 +1784,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
         )}
         <ContractDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />
       </div>
+      {editingContract && <ContractRichEditor template={contractTemplate} initialHtml={event.customContractHtml} onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
     </div>
   )
 }
@@ -1634,8 +1874,10 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
       </section>
 
       <section className="doc-section contract-clauses">
-        <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>Cláusulas do modelo {template.name}</h2></div>
-        <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>
+        <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>{event.customContractHtml ? 'Conteúdo contratual personalizado' : 'Cláusulas do modelo ' + template.name}</h2></div>
+        {event.customContractHtml
+          ? <div className="custom-contract-rich" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(event.customContractHtml) }} />
+          : <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>}
         {(!menu || menu.sourceLabel !== template.sourceLabel) && <TemplateOperationalDetails template={template} />}
       </section>
 
