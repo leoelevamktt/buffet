@@ -528,7 +528,7 @@ function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, on
         <button className="btn btn-primary" onClick={onNew}><Plus size={17} /> Criar evento</button>
       </div>
       <div className="filters"><div className="filter-search"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, tipo ou local" /></div><button className="btn btn-quiet">Todos <ChevronDown size={15} /></button></div>
-      <div className="table-wrap">
+      <div className="table-wrap desktop-event-table">
         <table>
           <thead><tr><th>Cliente / evento</th><th>Data</th><th>Convidados</th><th>Valor</th><th>Contrato</th><th></th></tr></thead>
           <tbody>
@@ -544,6 +544,27 @@ function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, on
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="mobile-event-list">
+        {filtered.map((event) => (
+          <article className="mobile-event-card" key={event.id}>
+            <div className="mobile-event-head">
+              <div><span className="eyebrow">{event.eventType}</span><strong>{event.clientName}</strong><small>{event.venue}</small></div>
+              <span className={statusClass(event.contractStatus)}>{event.contractStatus}</span>
+            </div>
+            <div className="mobile-event-facts">
+              <div><span>Data</span><strong>{shortDate(event.eventDate)} · {event.startTime}</strong></div>
+              <div><span>Convidados</span><strong>{event.guests}</strong></div>
+              <div><span>Valor</span><strong>{money(eventTotal(event, menus, services))}</strong></div>
+            </div>
+            <div className="mobile-event-actions">
+              <button onClick={() => onEdit(event.id)}><Pencil size={16} /> Editar</button>
+              <button onClick={() => onOpenQuote(event.id)}><WalletCards size={16} /> Orçamento</button>
+              <button onClick={() => onOpenContract(event.id)}><FileText size={16} /> Contrato</button>
+              <button className="danger" onClick={() => onDelete(event.id)}><Trash2 size={16} /> Excluir</button>
+            </div>
+          </article>
+        ))}
       </div>
       {!filtered.length && <EmptyState title="Nenhum evento encontrado" subtitle="Ajuste a busca ou crie um novo evento." />}
     </section>
@@ -668,6 +689,12 @@ function AgendaView({ events }: { events: BuffetEvent[] }) {
 
   const moveMonth = (amount: number) => setCursor(new Date(year, month + amount, 1))
   const monthLabel = cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const monthEvents = events
+    .filter((event) => {
+      const date = new Date(event.eventDate + 'T12:00:00')
+      return date.getMonth() === month && date.getFullYear() === year
+    })
+    .sort((a, b) => (a.eventDate + a.startTime).localeCompare(b.eventDate + b.startTime))
 
   return (
     <section className="panel calendar-panel">
@@ -675,8 +702,8 @@ function AgendaView({ events }: { events: BuffetEvent[] }) {
         <div><span className="eyebrow">PLANEJAMENTO</span><h2>{monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}</h2></div>
         <div className="calendar-controls"><button onClick={() => moveMonth(-1)}><ChevronLeft size={18} /></button><button onClick={() => setCursor(new Date())}>Hoje</button><button onClick={() => moveMonth(1)}><ChevronRight size={18} /></button></div>
       </div>
-      <div className="calendar-grid weekdays">{['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => <span key={day}>{day}</span>)}</div>
-      <div className="calendar-grid">
+      <div className="calendar-grid weekdays desktop-calendar">{['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => <span key={day}>{day}</span>)}</div>
+      <div className="calendar-grid desktop-calendar">
         {cells.map((day, index) => {
           const dayEvents = day ? events.filter((event) => {
             const date = new Date(event.eventDate + 'T12:00:00')
@@ -689,6 +716,22 @@ function AgendaView({ events }: { events: BuffetEvent[] }) {
             </div>
           )
         })}
+      </div>
+      <div className="mobile-agenda-list">
+        {monthEvents.length ? monthEvents.map((event) => (
+          <article className="mobile-agenda-item" key={event.id}>
+            <div className="mobile-agenda-date">
+              <strong>{new Date(event.eventDate + 'T12:00:00').getDate()}</strong>
+              <span>{new Date(event.eventDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+            </div>
+            <div className="mobile-agenda-copy">
+              <strong>{event.clientName}</strong>
+              <span>{event.startTime} · {event.eventType}</span>
+              <small>{event.venue}</small>
+            </div>
+            <span className={statusClass(event.contractStatus)}>{event.contractStatus}</span>
+          </article>
+        )) : <div className="mobile-agenda-empty">Nenhum evento neste mês.</div>}
       </div>
     </section>
   )
