@@ -1636,7 +1636,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
       <section className="doc-section contract-clauses">
         <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>Cláusulas do modelo {template.name}</h2></div>
         <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>
-        <TemplateOperationalDetails template={template} />
+        {(!menu || menu.sourceLabel !== template.sourceLabel) && <TemplateOperationalDetails template={template} />}
       </section>
 
       <div className="contract-location-date">São Paulo, {signatureDate}</div>
