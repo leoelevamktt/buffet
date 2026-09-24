@@ -7,6 +7,7 @@ export interface MenuChoiceGroup {
   options: string[]
   required?: boolean
   multiple?: boolean
+  maxSelections?: number
   note?: string
 }
 
@@ -59,6 +60,26 @@ export interface ServiceItem {
   name: string
   description: string
   price: number
+  pricing: 'fixed' | 'person'
+  quantity?: number
+}
+
+export interface ReceivedPayment {
+  id: string
+  date: string
+  amount: number
+  method: string
+  reference?: string
+  notes?: string
+}
+
+export interface EventServiceItem {
+  id: string
+  serviceId?: string
+  name: string
+  description: string
+  price: number
+  quantity: number
   pricing: 'fixed' | 'person'
 }
 
@@ -113,6 +134,9 @@ export interface BuffetEvent {
   clientAddress?: string
   clientEmail: string
   clientPhone: string
+  clientPhoneSecondary?: string
+  venueMode?: 'buffet' | 'offsite' | 'other'
+  venueAddress?: string
   eventType: string
   eventDate: string
   startTime: string
@@ -135,6 +159,14 @@ export interface BuffetEvent {
   customContractUpdatedAt?: string
   paymentMethod?: string
   paymentSchedule?: PaymentEntry[]
+  receivedPayments?: ReceivedPayment[]
+  signedEventSnapshot?: Partial<BuffetEvent>
+  signedTotal?: number
+  signedServices?: ServiceItem[]
+  signedMenu?: MenuItem | null
+  signedSettings?: BusinessSettings
+  signedContractTemplate?: ContractTemplate
+  serviceItems?: EventServiceItem[]
   serviceIds: string[]
   notes: string
   discount: number
@@ -156,6 +188,7 @@ export interface BusinessSettings {
   legalName: string
   document: string
   phone: string
+  secondaryPhone?: string
   email: string
   financeEmail?: string
   address: string

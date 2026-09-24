@@ -117,8 +117,8 @@ export const defaultMenus: MenuItem[] = [
       { title: 'Encerramento', items: ['Café', 'Água saborizada'] }
     ],
     choiceGroups: [
-      { id: 'pasta', label: 'Massa', required: true, options: ['Penne', 'Spaguete', 'Farfalle', 'Fusilli'] },
-      { id: 'sauce', label: 'Molho', required: true, options: ['Sugo', 'Bolonhesa', 'Parisiense', 'Calabresa', 'Tostano', 'Branco'] },
+      { id: 'pasta', label: 'Massas (até 2, se negociado)', required: true, multiple: true, maxSelections: 2, note: 'O documento original Prata prevê uma massa; a segunda é escolha adicional negociada.', options: ['Penne', 'Spaguete', 'Farfalle', 'Fusilli'] },
+      { id: 'sauce', label: 'Molhos (até 2, se negociado)', required: true, multiple: true, maxSelections: 2, note: 'O documento original Prata prevê um molho; o segundo deve ser combinado com o cliente.', options: ['Sugo', 'Bolonhesa', 'Parisiense', 'Calabresa', 'Tostano', 'Branco'] },
       {
         id: 'dessert',
         label: 'Doces — escolher uma opção',
@@ -369,6 +369,10 @@ export const defaultMenus: MenuItem[] = [
 ]
 
 export const defaultServices: ServiceItem[] = [
+  { id: 'service-dj', name: 'DJ', description: 'Serviço terceirizado de DJ contratado para o evento.', price: 600, pricing: 'fixed' },
+  { id: 'service-photo', name: 'Fotografia', description: 'Fotógrafo terceirizado — definir valor com o cliente.', price: 0, pricing: 'fixed' },
+  { id: 'service-video', name: 'Filmagem', description: 'Filmagem terceirizada — definir valor.', price: 0, pricing: 'fixed' },
+  { id: 'service-recreation', name: 'Recreação extra', description: 'Recreador terceirizado — definir valor.', price: 0, pricing: 'fixed' },
   { id: 'service-extra-decoration', name: 'Decoração / personalizados extras', description: 'Itens de decoração ou personalizados fora do pacote do cardápio.', price: 0, pricing: 'fixed' },
   { id: 'service-third-party', name: 'Serviço de terceiro', description: 'Foto, filmagem, DJ, show, retrospectiva ou outro fornecedor contratado separadamente.', price: 0, pricing: 'fixed' },
   { id: 'service-extra-guests', name: 'Convidados excedentes', description: 'Valor adicional por pessoa conforme o modelo de contrato selecionado.', price: 110, pricing: 'person' },
@@ -428,6 +432,7 @@ export const defaultSettings: BusinessSettings = {
   legalName: 'BUFFET AKELA',
   document: '19.386.779.0001/53',
   phone: '11 96890-0572',
+  secondaryPhone: '11 98706-4006',
   email: 'retroakela@gmail.com',
   financeEmail: 'retroakela@gmail.com',
   address: 'Rua Canto do Mangue, 5 · Jardim Marisa',

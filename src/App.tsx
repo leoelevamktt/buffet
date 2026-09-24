@@ -11,9 +11,11 @@ import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from '.
 import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
 import { useLocalStorage, uid } from './storage'
-import type { BuffetEvent, BusinessSettings, ContractTemplate, MenuItem, Section, ServiceItem } from './types'
-import { contractSequence, dateBR, eventTotal, money, phoneDigits, shortDate, statusClass } from './utils'
+import type { BuffetEvent, BusinessSettings, ContractTemplate, EventServiceItem, MenuItem, ReceivedPayment, Section, ServiceItem } from './types'
+import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal, initialReceivedPayments, money, phoneDigits, receivedTotal, shortDate, statusClass } from './utils'
 import { brandMark } from './brand'
+import { PaymentsModal } from './components/PaymentsModal'
+import { ServiceEditor } from './components/ServiceEditor'
 import './styles.css'
 
 const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
@@ -100,10 +102,12 @@ function AdminApp() {
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
   const [activeContractId, setActiveContractId] = useState<string | null>(null)
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
+  const [activePaymentsId, setActivePaymentsId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
 
   const activeContract = events.find((item) => item.id === activeContractId)
   const activeQuote = events.find((item) => item.id === activeQuoteId)
+  const activePayments = events.find((item) => item.id === activePaymentsId)
   const editingEvent = events.find((item) => item.id === editingEventId)
 
   useEffect(() => {
@@ -149,6 +153,16 @@ function AdminApp() {
   }, [setMenus, setEvents, setSettings])
 
   useEffect(() => {
+    const key = 'akela-services-presets-2027-v1'
+    if (window.localStorage.getItem(key)) return
+    setServices((current) => [
+      ...current,
+      ...defaultServices.filter((service) => !current.some((item) => item.id === service.id))
+    ])
+    window.localStorage.setItem(key, '1')
+  }, [setServices])
+
+  useEffect(() => {
     const syncPendingContracts = async () => {
       const pending = events.filter((item) => item.shareToken && item.contractStatus !== 'Assinado')
       if (!pending.length) return
@@ -158,18 +172,18 @@ function AdminApp() {
           const response = await fetch('/api/contracts?token=' + encodeURIComponent(item.shareToken!), { cache: 'no-store' })
           if (!response.ok) return null
           const data = await response.json()
-          return data.contract?.status === 'signed' ? { id: item.id, signature: data.contract.signature } : null
+          return data.contract?.status === 'signed' ? { id: item.id, signature: data.contract.signature, signedEventSnapshot: data.contract.event, signedTotal: data.contract.total, signedServices: data.contract.services, signedMenu: data.contract.menu, signedSettings: data.contract.settings, signedContractTemplate: data.contract.contractTemplate } : null
         } catch {
           return null
         }
       }))
 
-      const signed = results.filter(Boolean) as { id: string; signature: NonNullable<BuffetEvent['signature']> }[]
+      const signed = results.filter(Boolean) as { id: string; signature: NonNullable<BuffetEvent['signature']>; signedEventSnapshot: BuffetEvent; signedTotal: number; signedServices: ServiceItem[]; signedMenu: MenuItem | null; signedSettings: BusinessSettings; signedContractTemplate: ContractTemplate }[]
       if (!signed.length) return
 
       setEvents((current) => current.map((item) => {
         const remote = signed.find((result) => result.id === item.id)
-        return remote ? { ...item, signature: remote.signature, contractStatus: 'Assinado' as const, status: 'Confirmado' as const } : item
+        return remote ? { ...item, signature: remote.signature, signedEventSnapshot: remote.signedEventSnapshot, signedTotal: remote.signedTotal, signedServices: remote.signedServices, signedMenu: remote.signedMenu, signedSettings: remote.signedSettings, signedContractTemplate: remote.signedContractTemplate, contractStatus: 'Assinado' as const, status: 'Confirmado' as const } : item
       }))
     }
 
@@ -198,7 +212,11 @@ function AdminApp() {
     if (event.quoteToken) {
       requests.push(fetch('/api/quotes?token=' + encodeURIComponent(event.quoteToken), { method: 'DELETE' }))
     }
-    if (requests.length) await Promise.allSettled(requests)
+    if (requests.length) {
+      const results = await Promise.all(requests)
+      if (results.some((response) => ![204, 404].includes(response.status)))
+        throw new Error('Um dos links antigos não pôde ser revogado. Verifique se o contrato já foi assinado.')
+    }
   }
 
   const openEditEvent = (id: string) => {
@@ -214,7 +232,11 @@ function AdminApp() {
   const saveEditedEvent = async (event: BuffetEvent) => {
     const previous = events.find((item) => item.id === event.id)
     if (!previous) return
-    await revokeSharedSnapshots(previous)
+    try { await revokeSharedSnapshots(previous) }
+    catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível editar este documento.')
+      return
+    }
     const templateChanged = previous.contractTemplateId !== event.contractTemplateId
     const updated: BuffetEvent = {
       ...event,
@@ -230,6 +252,37 @@ function AdminApp() {
     setEvents((current) => current.map((item) => item.id === event.id ? updated : item))
     setEditingEventId(null)
     notify('Evento atualizado. Links antigos foram invalidados para preservar a versão correta.')
+  }
+
+  const saveReceivedPayments = async (id: string, payments: ReceivedPayment[]) => {
+    const current = events.find((item) => item.id === id)
+    if (!current) return
+    if (payments.some((item) => (!item.date && !item.id.startsWith('legacy-')) || !Number.isFinite(item.amount) || item.amount <= 0)) {
+      throw new Error('Informe data e valor positivo em todos os recebimentos.')
+    }
+    if (current.contractStatus !== 'Assinado') {
+      const tokens: { route: string; token: string }[] = []
+      if (current.shareToken) tokens.push({ route: 'contracts', token: current.shareToken })
+      if (current.quoteToken) tokens.push({ route: 'quotes', token: current.quoteToken })
+      for (const item of tokens) {
+        const response = await fetch('/api/' + item.route + '?token=' + encodeURIComponent(item.token), { method: 'DELETE' })
+        if (![204, 404].includes(response.status)) {
+          throw new Error('Não foi possível revogar um link anterior. O lançamento não foi salvo; tente novamente.')
+        }
+      }
+    }
+    setEvents((items) => items.map((item) => item.id !== id ? item : ({
+      ...item, receivedPayments: payments,
+      ...(item.contractStatus === 'Assinado' ? {} : {
+        shareToken: undefined, shareUrl: undefined, sharedAt: undefined,
+        quoteToken: undefined, quoteUrl: undefined, quoteSharedAt: undefined,
+        contractStatus: 'Rascunho' as const
+      })
+    })))
+    notify(current.contractStatus === 'Assinado'
+      ? 'Recebimento salvo no extrato. O contrato assinado permanece inalterado.'
+      : 'Recebimentos salvos. Gere novos links para contrato e orçamento.')
+    setActivePaymentsId(null)
   }
 
   const deleteEvent = (id: string) => {
@@ -252,7 +305,7 @@ function AdminApp() {
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
           )}
           {section === 'events' && (
-            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onEdit={openEditEvent} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
+            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onEdit={openEditEvent} onPayments={setActivePaymentsId} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
           )}
           {section === 'menus' && (
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
@@ -268,10 +321,10 @@ function AdminApp() {
       <MobileNav section={section} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} />
 
       {wizardOpen && (
-        <EventWizard events={events} menus={menus} services={services} onClose={() => setWizardOpen(false)} onSave={createEvent} />
+        <EventWizard events={events} menus={menus} services={services} settings={settings} onClose={() => setWizardOpen(false)} onSave={createEvent} />
       )}
       {editingEvent && (
-        <EventWizard events={events} menus={menus} services={services} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
+        <EventWizard events={events} menus={menus} services={services} settings={settings} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
       )}
       {menuEditorOpen && (
         <MenuEditor onClose={() => setMenuEditorOpen(false)} onSave={(menu) => {
@@ -291,6 +344,11 @@ function AdminApp() {
           notify={notify}
         />
       )}
+      {activePayments && (
+        <PaymentsModal event={activePayments} total={eventTotal(activePayments, menus, services)}
+          onClose={() => setActivePaymentsId(null)}
+          onSave={saveReceivedPayments} />
+      )}
       {activeContract && (
         <ContractModal
           event={activeContract}
@@ -299,6 +357,7 @@ function AdminApp() {
           settings={settings}
           onClose={() => setActiveContractId(null)}
           onUpdate={(patch) => updateEvent(activeContract.id, patch)}
+          onPayments={() => setActivePaymentsId(activeContract.id)}
           notify={notify}
         />
       )}
@@ -386,8 +445,8 @@ function Dashboard({ events, menus, services, onNavigate, onOpenContract }: {
   const proposals = events.filter((item) => item.status === 'Proposta')
   const proposalValue = proposals.reduce((sum, event) => sum + eventTotal(event, menus, services), 0)
   const pipelineValue = events.reduce((sum, event) => sum + eventTotal(event, menus, services), 0)
-  const deposits = events.reduce((sum, event) => sum + (event.deposit || 0), 0)
-  const receivable = confirmed.reduce((sum, event) => sum + Math.max(0, eventTotal(event, menus, services) - (event.deposit || 0)), 0)
+  const deposits = events.reduce((sum, event) => sum + receivedTotal(event), 0)
+  const receivable = confirmed.reduce((sum, event) => sum + Math.max(0, eventTotal(event, menus, services) - receivedTotal(event)), 0)
   const averageTicket = confirmed.length ? revenue / confirmed.length : 0
   const conversion = events.length ? Math.round((signed.length / events.length) * 100) : 0
   const confirmedGuests = confirmed.reduce((sum, event) => sum + event.guests, 0)
@@ -504,12 +563,13 @@ function Metric({ icon: Icon, label, value, note }: { icon: typeof Users; label:
   )
 }
 
-function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, onOpenQuote, onDelete }: {
+function EventsView({ events, menus, services, onNew, onEdit, onPayments, onOpenContract, onOpenQuote, onDelete }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onNew: () => void
   onEdit: (id: string) => void
+  onPayments: (id: string) => void
   onOpenContract: (id: string) => void
   onOpenQuote: (id: string) => void
   onDelete: (id: string) => void
@@ -534,12 +594,12 @@ function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, on
           <tbody>
             {filtered.map((event) => (
               <tr key={event.id}>
-                <td><div className="client-cell"><div className="event-dot" /><div><strong>{event.clientName}</strong><span>{event.eventType} · {event.venue}</span></div></div></td>
+                <td><div className="client-cell"><div className="event-dot" /><div><strong>{event.clientName}</strong><span>{event.eventType} · {event.venue}</span>{(event.clientPhone || event.clientPhoneSecondary) && <span>{[event.clientPhone, event.clientPhoneSecondary].filter(Boolean).join(' / ')}</span>}</div></div></td>
                 <td><strong>{shortDate(event.eventDate)}</strong><span className="subcell">{event.startTime}</span></td>
                 <td>{event.guests}</td>
                 <td><strong>{money(eventTotal(event, menus, services))}</strong></td>
                 <td><span className={statusClass(event.contractStatus)}>{event.contractStatus}</span></td>
-                <td><div className="row-actions"><button title="Editar evento" onClick={() => onEdit(event.id)}><Pencil size={17} /></button><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
+                <td><div className="row-actions"><button title="Editar evento" onClick={() => onEdit(event.id)}><Pencil size={17} /></button><button title="Lançar recebimentos" onClick={() => onPayments(event.id)}><CircleDollarSign size={17} /></button><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
               </tr>
             ))}
           </tbody>
@@ -549,7 +609,7 @@ function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, on
         {filtered.map((event) => (
           <article className="mobile-event-card" key={event.id}>
             <div className="mobile-event-head">
-              <div><span className="eyebrow">{event.eventType}</span><strong>{event.clientName}</strong><small>{event.venue}</small></div>
+              <div><span className="eyebrow">{event.eventType}</span><strong>{event.clientName}</strong><small>{event.venue}</small>{(event.clientPhone || event.clientPhoneSecondary) && <small>{[event.clientPhone, event.clientPhoneSecondary].filter(Boolean).join(' / ')}</small>}</div>
               <span className={statusClass(event.contractStatus)}>{event.contractStatus}</span>
             </div>
             <div className="mobile-event-facts">
@@ -559,6 +619,7 @@ function EventsView({ events, menus, services, onNew, onEdit, onOpenContract, on
             </div>
             <div className="mobile-event-actions">
               <button onClick={() => onEdit(event.id)}><Pencil size={16} /> Editar</button>
+              <button onClick={() => onPayments(event.id)}><CircleDollarSign size={16} /> Recebimentos</button>
               <button onClick={() => onOpenQuote(event.id)}><WalletCards size={16} /> Orçamento</button>
               <button onClick={() => onOpenContract(event.id)}><FileText size={16} /> Contrato</button>
               <button className="danger" onClick={() => onDelete(event.id)}><Trash2 size={16} /> Excluir</button>
@@ -581,6 +642,7 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
 }) {
   const [tab, setTab] = useState<'menus' | 'services'>('menus')
   const [editingMenu, setEditingMenu] = useState<MenuItem | null>(null)
+  const [editingService, setEditingService] = useState<ServiceItem | 'new' | null>(null)
   const activeCount = menus.filter((menu) => menu.active !== false).length
 
   const deleteMenu = (id: string) => {
@@ -599,7 +661,7 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
     <>
       <div className="section-intro">
         <div><span className="eyebrow">CATÁLOGO</span><h2>Sua oferta, organizada.</h2><p>{activeCount} cardápios ativos para novas propostas. Edite preços e itens sem perder o histórico dos eventos.</p></div>
-        {tab === 'menus' && <button className="btn btn-primary" onClick={onNewMenu}><Plus size={17} /> Novo cardápio</button>}
+        {tab === 'menus' ? <button className="btn btn-primary" onClick={onNewMenu}><Plus size={17} /> Novo cardápio</button> : <button className="btn btn-primary" onClick={() => setEditingService('new')}><Plus size={17} /> Cadastrar serviço</button>}
       </div>
       <div className="tabs"><button className={tab === 'menus' ? 'active' : ''} onClick={() => setTab('menus')}>Cardápios <span>{menus.length}</span></button><button className={tab === 'services' ? 'active' : ''} onClick={() => setTab('services')}>Serviços adicionais <span>{services.length}</span></button></div>
       {tab === 'menus' ? (
@@ -634,12 +696,20 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
             <div className="service-row" key={service.id}>
               <div className="service-icon"><Sparkles size={18} /></div>
               <div className="service-copy"><strong>{service.name}</strong><span>{service.description}</span></div>
-              <div className="service-price"><strong>{money(service.price)}</strong><span>{service.pricing === 'person' ? 'por pessoa' : 'valor fixo'}</span></div>
+              <div className="service-price"><strong>{service.price > 0 ? money(service.price) : 'A definir'}</strong><span>{service.pricing === 'person' ? 'por pessoa' : 'valor fixo'}</span></div>
+              <button className="icon-button" title="Editar serviço" onClick={() => setEditingService(service)}><Pencil size={17} /></button>
               <button className="icon-button danger" onClick={() => setServices((current) => current.filter((item) => item.id !== service.id))}><Trash2 size={17} /></button>
             </div>
           ))}
         </div>
       )}
+      {editingService && <ServiceEditor initial={editingService === 'new' ? undefined : editingService}
+        onClose={() => setEditingService(null)} onSave={(updated) => {
+          setServices((current) => current.some((item) => item.id === updated.id)
+            ? current.map((item) => item.id === updated.id ? updated : item)
+            : [...current, updated])
+          setEditingService(null); notify('Serviço salvo no catálogo.')
+        }} />}
       {editingMenu && (
         <MenuEditor
           initial={editingMenu}
@@ -753,7 +823,8 @@ function SettingsView({ settings, setSettings, notify }: {
           <Field label="Nome da marca" value={draft.businessName} onChange={(v) => field('businessName', v)} />
           <Field label="Razão social" value={draft.legalName} onChange={(v) => field('legalName', v)} />
           <Field label="CNPJ / CPF" value={draft.document} onChange={(v) => field('document', v)} />
-          <Field label="Telefone" value={draft.phone} onChange={(v) => field('phone', v)} />
+          <Field label="Telefone principal" value={draft.phone} onChange={(v) => field('phone', v)} />
+          <Field label="Telefone secundário" value={draft.secondaryPhone || ''} onChange={(v) => field('secondaryPhone', v)} />
           <Field label="E-mail" value={draft.email} onChange={(v) => field('email', v)} />
           <Field label="E-mail financeiro" value={draft.financeEmail || ''} onChange={(v) => field('financeEmail', v)} />
           <Field label="Cidade" value={draft.city} onChange={(v) => field('city', v)} />
@@ -813,20 +884,29 @@ function SettingsView({ settings, setSettings, notify }: {
   )
 }
 
-function EventWizard({ events, menus, services, onClose, onSave, initial }: {
+function EventWizard({ events, menus, services, settings, onClose, onSave, initial }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
+  settings: BusinessSettings
   onClose: () => void
   onSave: (event: BuffetEvent) => void | Promise<void>
   initial?: BuffetEvent
 }) {
   const editing = Boolean(initial)
   const [step, setStep] = useState(1)
+  const [customServiceName, setCustomServiceName] = useState('')
+  const [customServicePrice, setCustomServicePrice] = useState(0)
+  const [customServiceQty, setCustomServiceQty] = useState(1)
+  const [initialDepositDate, setInitialDepositDate] = useState(new Date().toISOString().slice(0, 10))
   const [form, setForm] = useState<BuffetEvent>(() => initial ? {
     ...initial,
     menuSelections: { ...(initial.menuSelections || {}) },
     serviceIds: [...initial.serviceIds],
+    serviceItems: initial.serviceItems?.map((item) => ({ ...item })) ?? initial.serviceIds.flatMap((id) => {
+      const service = services.find((item) => item.id === id)
+      return service ? [{ ...service, serviceId: id, quantity: 1 }] : []
+    }),
     paymentSchedule: initial.paymentSchedule?.map((entry) => ({ ...entry })) || Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
   } : ({
     id: uid('event'),
@@ -837,11 +917,14 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
     clientAddress: '',
     clientEmail: '',
     clientPhone: '',
+    clientPhoneSecondary: '',
+    venueMode: 'buffet',
+    venueAddress: [settings.address, settings.city].filter(Boolean).join(', '),
     eventType: 'Casamento',
     eventDate: '',
     startTime: '18:00',
     endTime: '23:00',
-    venue: '',
+    venue: settings.businessName,
     guests: 50,
     menuId: menus.find((menu) => menu.active !== false)?.id || menus[0]?.id || '',
     basePrice: 0,
@@ -851,6 +934,8 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
     contractTemplateId: menus.find((menu) => menu.active !== false)?.contractTemplateId || contractTemplates[0]?.id,
     paymentMethod: '',
     paymentSchedule: Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 })),
+    serviceItems: [],
+    receivedPayments: [],
     serviceIds: [],
     notes: '',
     discount: 0,
@@ -865,6 +950,7 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
   const selectedTemplate = getContractTemplate(form.contractTemplateId)
   const compatibleContractTemplates = contractTemplates.filter((template) => form.menuId ? template.type === 'services' : template.type === 'space-rental')
   const isRental = selectedTemplate.type === 'space-rental'
+  const venueRestricted = (isRental || Boolean(selectedMenu?.unitRestriction)) && form.venueMode !== undefined && form.venueMode !== 'buffet'
   const requiredChoicesComplete = (selectedMenu?.choiceGroups || []).filter((group) => group.required).every((group) => {
     const value = form.menuSelections?.[group.id]
     return Array.isArray(value) ? value.length > 0 : Boolean(value)
@@ -872,8 +958,29 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
   const canContinue = step === 1
     ? Boolean(form.clientName && form.eventDate && form.venue && form.guests)
     : step === 2
-      ? (isRental ? (form.basePrice ?? 0) > 0 : Boolean(form.menuId && (form.menuPricePerPerson ?? 0) > 0 && requiredChoicesComplete))
+      ? (!venueRestricted && (isRental ? (form.basePrice ?? 0) > 0 : Boolean(form.menuId && (form.menuPricePerPerson ?? 0) > 0 && requiredChoicesComplete)))
       : true
+  const toggleService = (service: ServiceItem) => {
+    setForm((current) => {
+      const selected = current.serviceItems || []
+      const exists = selected.some((item) => item.serviceId === service.id)
+      const next = exists ? selected.filter((item) => item.serviceId !== service.id)
+        : [...selected, { ...service, serviceId: service.id, quantity: 1 }]
+      return { ...current, serviceItems: next, serviceIds: next.map((item) => item.serviceId).filter((id): id is string => Boolean(id)) }
+    })
+  }
+  const updateService = (id: string, patch: Partial<EventServiceItem>) =>
+    set('serviceItems', (form.serviceItems || []).map((item) => item.id === id ? { ...item, ...patch } : item))
+  const addCustomService = () => {
+    if (!customServiceName.trim()) return
+    set('serviceItems', [...(form.serviceItems || []), {
+      id: uid('extra'), name: customServiceName.trim(), serviceId: undefined,
+      description: 'Serviço contratado adicionalmente',
+      price: Math.max(0, customServicePrice), quantity: Math.max(1, customServiceQty),
+      pricing: 'fixed'
+    }])
+    setCustomServiceName(''); setCustomServicePrice(0); setCustomServiceQty(1)
+  }
   const updatePaymentEntry = (index: number, key: 'date' | 'checkNumber' | 'amount', value: string | number) => {
     const current = form.paymentSchedule || Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
     const next = current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [key]: value } : entry)
@@ -904,13 +1011,21 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                 <Field label="CPF / CNPJ" value={form.clientDocument} onChange={(v) => set('clientDocument', v)} placeholder="Documento" />
                 <Field label="RG" value={form.clientRg || ''} onChange={(v) => set('clientRg', v)} placeholder="RG do contratante" />
                 <Field label="E-mail" value={form.clientEmail} onChange={(v) => set('clientEmail', v)} type="email" />
-                <Field label="WhatsApp" value={form.clientPhone} onChange={(v) => set('clientPhone', v)} placeholder="(11) 99999-9999" />
+                <Field label="WhatsApp principal" value={form.clientPhone} onChange={(v) => set('clientPhone', v)} placeholder="(11) 99999-9999" />
+                <Field label="Telefone adicional / WhatsApp de reserva" value={form.clientPhoneSecondary || ''} onChange={(v) => set('clientPhoneSecondary', v)} placeholder="(11) 98888-8888" />
                 <div className="field"><label>Endereço do contratante</label><input value={form.clientAddress || ''} onChange={(e) => set('clientAddress', e.target.value)} placeholder="Rua, número, bairro e cidade" /></div>
                 <div className="field"><label>Tipo de evento</label><select value={form.eventType} onChange={(e) => set('eventType', e.target.value)}>{eventTypes.map((type) => <option key={type}>{type}</option>)}</select></div>
                 <Field label="Data *" value={form.eventDate} onChange={(v) => set('eventDate', v)} type="date" />
                 <Field label="Horário inicial" value={form.startTime} onChange={(v) => set('startTime', v)} type="time" />
                 <Field label="Horário final" value={form.endTime} onChange={(v) => set('endTime', v)} type="time" />
-                <div className="field span-2"><label>Local do evento *</label><input value={form.venue} onChange={(e) => set('venue', e.target.value)} placeholder="Salão, endereço ou espaço de eventos" /></div>
+                <div className="field span-2"><label>Local do evento *</label><select value={form.venueMode || 'other'} onChange={(e) => {
+                  const mode = e.target.value as NonNullable<BuffetEvent['venueMode']>
+                  setForm((prev) => ({ ...prev, venueMode: mode,
+                    venue: mode === 'buffet' ? settings.businessName : mode === 'offsite' ? 'Atendimento a domicílio' : '',
+                    venueAddress: mode === 'buffet' ? [settings.address, settings.city].filter(Boolean).join(', ') : '' }))
+                }}><option value="buffet">{settings.businessName} — sede</option><option value="offsite">A domicílio</option><option value="other">Outro espaço / endereço personalizado</option></select></div>
+                <Field label="Local / nome do espaço" value={form.venue} onChange={(v) => set('venue', v)} placeholder="Buffet Akela ou domicílio" />
+                <div className="field span-2"><label>Endereço do evento</label><input value={form.venueAddress || ''} onChange={(e) => set('venueAddress', e.target.value)} placeholder="Rua, número, bairro, cidade" /></div>
                 <Field label="Número de convidados *" value={String(form.guests)} onChange={(v) => set('guests', Math.max(1, Number(v)))} type="number" />
               </div>
               {form.eventType === 'Aniversário' && (
@@ -961,6 +1076,8 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                   </button>
                 ))}
               </div>
+              {venueRestricted && <p className="finance-notice">Este pacote ou locação exige a sede indicada no material original. Selecione Buffet Akela como local ou utilize outro cardápio compatível com atendimento externo.</p>}
+              {form.venueMode === 'offsite' && !venueRestricted && <p className="finance-notice">Atendimento a domicílio: revise as cláusulas do contrato sobre uso da sede no editor antes de enviá-lo ao cliente.</p>}
               {isRental && !form.menuId && (
                 <div className="material-config rental-config">
                   <div className="form-section-title spaced"><FileText size={18} /><div><strong>Configurar locação do espaço</strong><span>Baseado no contrato oficial de locação 2027.</span></div></div>
@@ -983,6 +1100,26 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                     <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{compatibleContractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
                     {selectedMenu.choiceGroups?.map((group) => {
                       const currentValue = form.menuSelections?.[group.id]
+                      if (group.id === 'pasta' || group.id === 'sauce') {
+                        const chosen = Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []
+                        return <div className="field span-2" key={group.id}>
+                          <label>{group.label}</label>
+                          <div className="dual-choice">
+                            {[0, 1].map((slot) => <div className="field" key={slot}>
+                              <label>{group.id === 'pasta' ? 'Massa' : 'Molho'} {slot + 1}{slot === 0 ? ' *' : ' (opcional)'}</label>
+                              <select value={chosen[slot] || ''} onChange={(e) => {
+                                const changed = [...chosen]; changed[slot] = e.target.value
+                                set('menuSelections', { ...(form.menuSelections || {}), [group.id]: changed.filter(Boolean) })
+                              }}>
+                                <option value="">Selecionar</option>
+                                {group.options.filter((option) => !chosen.includes(option) || chosen[slot] === option)
+                                  .map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
+                            </div>)}
+                          </div>
+                          {group.note && <small className="field-note">{group.note}</small>}
+                        </div>
+                      }
                       if (group.multiple) {
                         const selectedValues = Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []
                         return (
@@ -996,9 +1133,10 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                                     <input
                                       type="checkbox"
                                       checked={checked}
+                                      disabled={!checked && Boolean(group.maxSelections && selectedValues.length >= group.maxSelections)}
                                       onChange={() => set('menuSelections', {
                                         ...(form.menuSelections || {}),
-                                        [group.id]: checked ? selectedValues.filter((value) => value !== option) : [...selectedValues, option]
+                                        [group.id]: checked ? selectedValues.filter((value) => value !== option) : [...selectedValues, option].slice(0, group.maxSelections ?? 99)
                                       })}
                                     />
                                     <span>{option}</span>
@@ -1046,23 +1184,53 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                 </div>
               </div>
               <div className="service-select-list">
+                <div className="form-section-title"><Sparkles size={18} /><div><strong>Serviços terceirizados e opcionais</strong><span>Selecione item a item; o valor e quantidade podem ser ajustados neste evento.</span></div></div>
                 {services.map((service) => {
-                  const selected = form.serviceIds.includes(service.id)
-                  return (
-                    <button className={selected ? 'service-select active' : 'service-select'} key={service.id} onClick={() => set('serviceIds', selected ? form.serviceIds.filter((id) => id !== service.id) : [...form.serviceIds, service.id])}>
+                  const selected = (form.serviceItems || []).find((item) => item.serviceId === service.id)
+                  return <div className="service-edit-card" key={service.id}>
+                    <button className={selected ? 'service-select active' : 'service-select'} onClick={() => toggleService(service)}>
                       <div className="checkbox">{selected && <Check size={14} />}</div>
                       <div><strong>{service.name}</strong><span>{service.description}</span></div>
-                      <strong>{money(service.price)} <small>{service.pricing === 'person' ? '/pessoa' : ''}</small></strong>
+                      <strong>{money(selected?.price ?? service.price)} <small>{service.pricing === 'person' ? '/pessoa' : ''}</small></strong>
                     </button>
-                  )
+                    {selected && <div className="service-edit-fields">
+                      <div className="field"><label>Valor {selected.pricing === 'person' ? 'por pessoa' : 'unitário'} (R$)</label>
+                        <input type="number" min="0" step="0.01" value={selected.price} onChange={(e) => updateService(selected.id, { price: Math.max(0, Number(e.target.value)) })} />
+                      </div>
+                      <div className="field"><label>Quantidade</label>
+                        <input type="number" min="1" step="1" value={selected.quantity} onChange={(e) => updateService(selected.id, { quantity: Math.max(1, Math.floor(Number(e.target.value))) })} />
+                      </div>
+                    </div>}
+                  </div>
                 })}
+                {(form.serviceItems || []).filter((item) => !item.serviceId).map((item) => (
+                  <div className="service-edit-card" key={item.id}>
+                    <div className="service-custom-heading"><strong>{item.name}</strong>
+                      <button className="icon-button danger" aria-label={'Excluir ' + item.name} onClick={() => set('serviceItems', (form.serviceItems || []).filter((current) => current.id !== item.id))}><Trash2 size={17} /></button>
+                    </div>
+                    <div className="service-edit-fields">
+                      <Field label="Valor unitário (R$)" type="number" value={String(item.price)} onChange={(v) => updateService(item.id, { price: Math.max(0, Number(v)) })} />
+                      <Field label="Quantidade" type="number" value={String(item.quantity)} onChange={(v) => updateService(item.id, { quantity: Math.max(1, Math.floor(Number(v))) })} />
+                    </div>
+                  </div>
+                ))}
+                <div className="service-custom-add">
+                  <strong>Outro serviço personalizado</strong>
+                  <div className="form-grid two">
+                    <Field label="Nome do serviço" value={customServiceName} onChange={setCustomServiceName} placeholder="Ex.: banda, decoração extra" />
+                    <Field label="Valor unitário (R$)" type="number" value={String(customServicePrice)} onChange={(v) => setCustomServicePrice(Math.max(0, Number(v)))} />
+                    <Field label="Quantidade" type="number" value={String(customServiceQty)} onChange={(v) => setCustomServiceQty(Math.max(1, Math.floor(Number(v))))} />
+                  </div>
+                  <button className="btn btn-quiet" onClick={addCustomService} disabled={!customServiceName.trim()}><Plus size={16} /> Adicionar serviço</button>
+                </div>
               </div>
               <div className="payment-config">
                 <div className="form-section-title spaced"><CircleDollarSign size={18} /><div><strong>Pagamento conforme documento</strong><span>{selectedTemplate.sourceLabel}</span></div></div>
                 <div className="form-grid two compact">
                   <div className="field">
                     <label>Forma de pagamento</label>
-                    <select value={form.paymentMethod || ''} onChange={(e) => set('paymentMethod', e.target.value)}>
+                    <select value={form.paymentMethod || ''} onChange={(e) => setForm((current) => ({ ...current, paymentMethod: e.target.value,
+                        receivedPayments: current.receivedPayments?.map((item) => item.id === 'initial-' + current.id ? { ...item, method: e.target.value } : item) }))}>
                       <option value="">Selecionar / definir depois</option>
                       {selectedTemplate.paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
                     </select>
@@ -1070,6 +1238,7 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                   <div className="field"><label>E-mail financeiro do modelo</label><input value={selectedTemplate.financialEmail} disabled /></div>
                 </div>
                 {selectedTemplate.paymentScheduleSlots ? (
+                  <details className="payment-schedule-optional"><summary>Planejar parcelas ou cheques (opcional)</summary>
                   <div className="payment-schedule">
                     <div className="payment-schedule-head"><span>Parcela</span><span>Data</span><span>Nº do cheque</span><span>Valor</span></div>
                     {Array.from({ length: selectedTemplate.paymentScheduleSlots }).map((_, index) => {
@@ -1083,8 +1252,8 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
                         </div>
                       )
                     })}
-                    <small>O material original possui cinco linhas para Data, nº do cheque e Valor. Preencha somente quando aplicável.</small>
-                  </div>
+                    <small>O documento original prevê até cinco parcelas. Somente os pagamentos lançados em Recebimentos serão marcados como pagos.</small>
+                  </div></details>
                 ) : null}
                 {selectedTemplate.paymentData?.pixLabel && (
                   <div className="payment-material-note"><strong>PIX / Dados do documento</strong><span>{selectedTemplate.paymentData.pixLabel}{selectedTemplate.paymentData.pixKey ? ' · ' + selectedTemplate.paymentData.pixKey : ' · chave não informada no documento'}</span></div>
@@ -1093,7 +1262,17 @@ function EventWizard({ events, menus, services, onClose, onSave, initial }: {
               </div>
               <div className="form-grid two compact">
                 <Field label="Desconto" value={String(form.discount)} onChange={(v) => set('discount', Number(v))} type="number" prefix="R$" />
-                <Field label="Sinal recebido" value={String(form.deposit)} onChange={(v) => set('deposit', Number(v))} type="number" prefix="R$" />
+                {!editing ? <>
+                  <Field label="Sinal inicial recebido (R$)" value={String(form.deposit)} type="number" prefix="R$"
+                    onChange={(v) => setForm((current) => ({ ...current, deposit: Math.max(0, Number(v)),
+                      receivedPayments: Number(v) > 0 ? [{ id: 'initial-' + current.id, date: initialDepositDate,
+                        amount: Math.max(0, Number(v)), method: current.paymentMethod || 'A confirmar', notes: 'Sinal inicial' }] : [] }))} />
+                  <Field label="Data do sinal inicial" value={initialDepositDate} type="date" onChange={(v) => {
+                    setInitialDepositDate(v)
+                    setForm((current) => ({ ...current, receivedPayments: current.receivedPayments?.map((item) =>
+                      item.id === 'initial-' + current.id ? { ...item, date: v } : item) }))
+                  }} />
+                </> : <div className="field"><label>Recebimentos</label><p className="field-note">Para adicionar, alterar ou excluir pagamentos, salve o evento e utilize o botão Recebimentos.</p></div>}
                 <div className="field span-2"><label>Observações do evento</label><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Restrições alimentares, detalhes de montagem, horários..." /></div>
               </div>
             </div>
@@ -1148,6 +1327,7 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
         options: rest.join('|').split(';').map((item) => item.trim()).filter(Boolean),
         required,
         multiple,
+        maxSelections: existing?.maxSelections,
         note: existing?.note
       }
     })
@@ -1236,8 +1416,9 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
   notify: (message: string) => void
 }) {
   const [sharing, setSharing] = useState(false)
+  const [contactPhone, setContactPhone] = useState(event.clientPhone || event.clientPhoneSecondary || '')
   const menu = menus.find((item) => item.id === event.menuId)
-  const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
+  const selectedServices = eventServices(event, services)
   const baseContractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
   const contractTemplate: ContractTemplate = {
     ...baseContractTemplate,
@@ -1298,7 +1479,7 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
       return
     }
     const text = 'Olá, ' + event.clientName + '! Preparamos seu orçamento para ' + event.eventType + '. Confira todos os detalhes aqui: ' + url
-    const phone = phoneDigits(event.clientPhone)
+    const phone = phoneDigits(contactPhone)
     const target = phone
       ? 'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + encodeURIComponent(text)
       : 'https://wa.me/?text=' + encodeURIComponent(text)
@@ -1317,6 +1498,11 @@ function QuoteModal({ event, menus, services, settings, onClose, onUpdate, notif
         <div className="contract-toolbar no-print">
           <div><button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar</button><div><strong>ORÇAMENTO</strong><span>{event.clientName}</span></div></div>
           <div className="contract-actions">
+            {event.clientPhoneSecondary && <label className="contract-contact-choice">Enviar WhatsApp para
+              <select value={contactPhone} onChange={(e) => setContactPhone(e.target.value)}>
+                {event.clientPhone && <option value={event.clientPhone}>Principal: {event.clientPhone}</option>}
+                <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
+              </select></label>}
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.quoteUrl && <button className="btn btn-quiet" onClick={copyLink}><FileText size={17} /> Copiar link</button>}
             <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing}><Send size={17} /> WhatsApp</button>
@@ -1388,29 +1574,26 @@ function MenuMaterialDetails({ menu, event }: { menu?: MenuItem; event: BuffetEv
 }
 
 function PaymentDocumentDetails({ event, template }: { event: BuffetEvent; template: ContractTemplate }) {
-  const slotCount = template.paymentScheduleSlots || 0
-  const entries = slotCount
-    ? Array.from({ length: slotCount }, (_, index) => event.paymentSchedule?.[index] || { date: '', checkNumber: '', amount: 0 })
-    : (event.paymentSchedule || []).filter((entry) => entry.date || entry.checkNumber || entry.amount > 0)
+  const payments = initialReceivedPayments(event)
+  const planned = (event.paymentSchedule || []).filter((item) => Boolean(item.date || item.checkNumber || item.amount > 0))
   return (
     <div className="doc-payment-details">
       <div className="doc-payment-summary">
-        <div><span>Forma de pagamento selecionada</span><strong>{event.paymentMethod || 'A definir'}</strong></div>
-        <div><span>E-mail financeiro do modelo</span><strong>{template.financialEmail}</strong></div>
+        <div><span>Forma de pagamento combinada</span><strong>{event.paymentMethod || 'A definir'}</strong></div>
+        <div><span>Financeiro do documento</span><strong>{template.financialEmail}</strong></div>
       </div>
-      {entries.length > 0 && (
-        <div className="doc-payment-table">
-          <div className="doc-payment-table-head"><span>Parcela</span><span>Data</span><span>Nº do cheque</span><span>Valor</span></div>
-          {entries.map((entry, index) => (
-            <div className="doc-payment-table-row" key={index}>
-              <strong>{index + 1}</strong>
-              <span>{entry.date ? dateBR(entry.date) : '—'}</span>
-              <span>{entry.checkNumber || '—'}</span>
-              <strong>{entry.amount > 0 ? money(entry.amount) : '—'}</strong>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="doc-payment-ledger">
+        <strong>HISTÓRICO DE PAGAMENTOS RECEBIDOS</strong>
+        {payments.length ? payments.map((payment) => (
+          <p key={payment.id}><span>{payment.date ? dateBR(payment.date) : 'Data a confirmar'} · {payment.method || 'Forma não informada'}{payment.reference ? ' · ' + payment.reference : ''}</span>
+            <b>{money(payment.amount)}</b></p>
+        )) : <p><span>Nenhum pagamento recebido até a emissão deste documento.</span></p>}
+        <p className="doc-payment-ledger-total"><span>Total recebido</span><b>{money(receivedTotal(event))}</b></p>
+      </div>
+      {planned.length > 0 && <div className="doc-payment-planned">
+        <strong>PARCELAS PREVISTAS (NÃO CONFUNDIR COM RECEBIMENTOS)</strong>
+        {planned.map((entry, index) => <p key={index}><span>{entry.date ? dateBR(entry.date) : 'Data a definir'}{entry.checkNumber ? ' · Cheque nº ' + entry.checkNumber : ''}</span><b>{money(entry.amount)}</b></p>)}
+      </div>}
       {template.paymentData?.pixLabel && (
         <div className="doc-payment-note"><strong>DADOS PARA PAGAMENTO / PIX</strong><span>{template.paymentData.pixLabel}{template.paymentData.pixKey ? ' · ' + template.paymentData.pixKey : ' · chave PIX não informada no documento de origem'}</span></div>
       )}
@@ -1475,7 +1658,7 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
   const isRental = template.type === 'space-rental'
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
   const menuSubtotal = isRental ? (event.basePrice || 0) : menuPrice * event.guests
-  const servicesSubtotal = services.reduce((sum, service) => sum + (service.pricing === 'person' ? service.price * event.guests : service.price), 0)
+  const servicesSubtotal = services.reduce((sum, service) => sum + (service.pricing === 'person' ? service.price * event.guests * (service.quantity || 1) : service.price * (service.quantity || 1)), 0)
   const quoteNumber = event.contractNumber.replace('CTR-', 'ORC-')
   const expiry = expiresAt
     ? new Date(expiresAt)
@@ -1500,7 +1683,7 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
           <div><span>Data</span><strong>{dateBR(event.eventDate)}</strong></div>
           <div><span>Horário</span><strong>{event.startTime} — {event.endTime}</strong></div>
           <div><span>Convidados</span><strong>{event.guests} pessoas</strong></div>
-          <div className="wide"><span>Local</span><strong>{event.venue}</strong></div>
+          <div className="wide"><span>Local</span><strong>{event.venue}{event.venueAddress ? ' · ' + event.venueAddress : ''}</strong></div>
         </div>
       </section>
 
@@ -1523,7 +1706,7 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
 
       <section className="quote-section">
         <div className="doc-section-head"><span>03</span><h2>Serviços e estrutura</h2></div>
-        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}</span><b>{service.pricing === 'person' ? money(service.price) + '/pessoa' : money(service.price)}</b></div>)}</div> : <p className="doc-muted">Nenhum serviço adicional incluído nesta proposta.</p>}
+        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}{(service.quantity || 1) > 1 ? ' · ' + service.quantity + ' unidades' : ''}</span><b>{money(service.pricing === 'person' ? service.price * event.guests * (service.quantity || 1) : service.price * (service.quantity || 1))}</b></div>)}</div> : <p className="doc-muted">Nenhum serviço adicional incluído nesta proposta.</p>}
       </section>
 
       <section className="quote-section quote-finance-section">
@@ -1545,7 +1728,7 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
         <p>Valores e disponibilidade de agenda estão sujeitos à confirmação após esta data.</p>
       </section>
 
-      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}</span><span>{quoteNumber}</span></footer>
+      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone}{settings.secondaryPhone ? ' · ' + settings.secondaryPhone : ''} · {settings.email}</span><span>{quoteNumber}</span></footer>
     </article>
   )
 }
@@ -1637,20 +1820,22 @@ function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
   )
 }
 
-function ContractModal({ event, menus, services, settings, onClose, onUpdate, notify }: {
+function ContractModal({ event, menus, services, settings, onClose, onUpdate, onPayments, notify }: {
   event: BuffetEvent
   menus: MenuItem[]
   services: ServiceItem[]
   settings: BusinessSettings
   onClose: () => void
   onUpdate: (patch: Partial<BuffetEvent>) => void
+  onPayments: () => void
   notify: (message: string) => void
 }) {
   const [sharing, setSharing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [editingContract, setEditingContract] = useState(false)
+  const [contactPhone, setContactPhone] = useState(event.clientPhone || event.clientPhoneSecondary || '')
   const menu = menus.find((item) => item.id === event.menuId)
-  const selectedServices = services.filter((item) => event.serviceIds.includes(item.id))
+  const selectedServices = eventServices(event, services)
   const baseContractTemplate = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
   const contractTemplate: ContractTemplate = {
     ...baseContractTemplate,
@@ -1658,17 +1843,34 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
   }
   const total = eventTotal(event, menus, services)
   const compatibleTemplates = contractTemplates.filter((template) => menu ? template.type === 'services' : template.type === 'space-rental')
+  const printEvent: BuffetEvent = event.contractStatus === 'Assinado'
+    ? { ...event, ...(event.signedEventSnapshot || {}), receivedPayments: event.signedEventSnapshot?.receivedPayments,
+        deposit: event.signedEventSnapshot?.deposit ?? event.deposit, signature: event.signature }
+    : event
+  const printMenu = event.contractStatus === 'Assinado' ? (event.signedMenu || menu) : menu
+  const printServices = event.contractStatus === 'Assinado' ? (event.signedServices || selectedServices) : selectedServices
+  const printTotal = event.contractStatus === 'Assinado' ? (event.signedTotal ?? total) : total
+  const printTemplate = event.contractStatus === 'Assinado' ? (event.signedContractTemplate || contractTemplate) : contractTemplate
+  const printSettings = event.contractStatus === 'Assinado' ? (event.signedSettings || settings) : settings
 
   const revokeGeneratedLinks = async () => {
     const requests: Promise<Response>[] = []
     if (event.shareToken && event.contractStatus !== 'Assinado') requests.push(fetch('/api/contracts?token=' + encodeURIComponent(event.shareToken), { method: 'DELETE' }))
     if (event.quoteToken) requests.push(fetch('/api/quotes?token=' + encodeURIComponent(event.quoteToken), { method: 'DELETE' }))
-    if (requests.length) await Promise.allSettled(requests)
+    if (requests.length) {
+      const results = await Promise.all(requests)
+      if (results.some((response) => ![204, 404].includes(response.status)))
+        throw new Error('Não foi possível revogar um link. Confirme antes se o cliente já assinou.')
+    }
   }
 
   const changeContractTemplate = async (templateId: string) => {
     if (event.contractStatus === 'Assinado') return
-    await revokeGeneratedLinks()
+    try { await revokeGeneratedLinks() }
+    catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível trocar o modelo.')
+      return
+    }
     onUpdate({
       contractTemplateId: templateId,
       customContractHtml: undefined,
@@ -1686,7 +1888,11 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
 
   const saveCustomContract = async (html: string) => {
     if (event.contractStatus === 'Assinado') return
-    await revokeGeneratedLinks()
+    try { await revokeGeneratedLinks() }
+    catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível salvar o contrato.')
+      return
+    }
     onUpdate({
       customContractHtml: html,
       customContractUpdatedAt: new Date().toISOString(),
@@ -1711,7 +1917,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
       const data = await response.json()
       const remote = data.contract
       if (remote?.status === 'signed' && remote.signature) {
-        onUpdate({ signature: remote.signature, contractStatus: 'Assinado', status: 'Confirmado' })
+        onUpdate({ signature: remote.signature, signedEventSnapshot: remote.event, signedTotal: remote.total, signedServices: remote.services, signedMenu: remote.menu, signedSettings: remote.settings, signedContractTemplate: remote.contractTemplate, contractStatus: 'Assinado', status: 'Confirmado' })
         if (!silent) notify('Assinatura do cliente sincronizada.')
       }
     } finally {
@@ -1727,6 +1933,10 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
   }, [event.shareToken, event.contractStatus])
 
   const createSigningLink = async () => {
+    if (event.venueMode === 'offsite' && !event.customContractHtml) {
+      notify('Evento a domicílio: edite as cláusulas que mencionam a sede antes de gerar o link.')
+      return ''
+    }
     if (event.contractStatus === 'Assinado') return event.shareUrl || ''
     if (event.shareUrl && event.shareToken) return event.shareUrl
 
@@ -1772,7 +1982,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
       return
     }
     const text = 'Olá, ' + event.clientName + '! Seu contrato ' + event.contractNumber + ' está disponível para leitura e assinatura eletrônica: ' + url
-    const phone = phoneDigits(event.clientPhone)
+    const phone = phoneDigits(contactPhone)
     const target = phone ? 'https://wa.me/' + (phone.startsWith('55') ? phone : '55' + phone) + '?text=' + encodeURIComponent(text) : 'https://wa.me/?text=' + encodeURIComponent(text)
     if (popup) {
       popup.opener = null
@@ -1805,7 +2015,13 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
         <div className="contract-toolbar no-print">
           <div><button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar</button><div><strong>{event.contractNumber}</strong><span>{event.clientName}</span></div></div>
           <div className="contract-actions">
+            {event.clientPhoneSecondary && <label className="contract-contact-choice">Enviar WhatsApp para
+              <select value={contactPhone} onChange={(e) => setContactPhone(e.target.value)}>
+                {event.clientPhone && <option value={event.clientPhone}>Principal: {event.clientPhone}</option>}
+                <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
+              </select></label>}
             <button className="btn btn-quiet" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato</button>
+            <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
             <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing || event.contractStatus === 'Assinado'}><Send size={17} /> {sharing ? 'Gerando...' : 'WhatsApp'}</button>
@@ -1826,7 +2042,8 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, no
             <button onClick={copySigningLink}>Copiar link</button>
           </div>
         )}
-        <ContractDocument event={event} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />
+        <ContractDocument event={printEvent} menu={printMenu} services={printServices} settings={printSettings} total={printTotal} templateOverride={printTemplate} />
+        {event.contractStatus === 'Assinado' && <div className="signed-ledger-box no-print"><strong>Extrato financeiro atual (separado do documento assinado)</strong><p>Total recebido até agora: {money(receivedTotal(event))} · Saldo: {money(Math.max(0, total - receivedTotal(event)))}</p><button className="btn btn-quiet" onClick={onPayments}>Lançar ou conferir pagamentos</button></div>}
       </div>
       {editingContract && <ContractRichEditor template={contractTemplate} initialHtml={event.customContractHtml} onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
     </div>
@@ -1851,16 +2068,31 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
 
   return (
     <article className="contract-document">
-      <header className="doc-header">
-        <div className="doc-brand"><img className="brand-emblem brand-emblem--doc" src={brandMark} alt={settings.businessName} /><div><strong>{settings.businessName}</strong><span>Eventos & buffet</span></div></div>
-        <div className="doc-number"><span>CONTRATO</span><strong>{event.contractNumber}</strong></div>
+      <header className="doc-akela-header">
+        <div className="doc-akela-fields">
+          <div className="doc-akela-line"><div className="grow"><span>{event.eventType === 'Aniversário' ? 'Aniversariante:' : 'Contratante:'}</span><strong>{event.eventType === 'Aniversário' ? (event.celebrantName || event.clientName) : event.clientName}</strong></div></div>
+          <div className="doc-akela-line">
+            <div><span>Idade:</span><strong>{event.celebrantAge || ' '}</strong></div>
+            <div className="grow"><span>Data:</span><strong>{dateBR(event.eventDate)}</strong></div>
+            <div><span>Das:</span><strong>{event.startTime}</strong><span>às:</span><strong>{event.endTime}</strong></div>
+          </div>
+          <div className="doc-akela-line"><div className="grow"><span>Tema:</span><strong>{event.theme || ' '}</strong></div><div><span>Nº de convidados:</span><strong>{event.guests}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Pai:</span><strong>{event.fatherName || ' '}</strong></div><div className="grow"><span>Mãe:</span><strong>{event.motherName || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Irmãos:</span><strong>{event.siblings || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Telefone:</span><strong>{event.clientPhone || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Telefone adicional:</span><strong>{event.clientPhoneSecondary || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>E-mail:</span><strong>{event.clientEmail || ' '}</strong></div></div>
+        </div>
+        <div className="doc-akela-identity">
+          <img src={brandMark} alt={'Logo original ' + settings.businessName} />
+          <span>CONTRATO {event.contractNumber}</span>
+        </div>
       </header>
-
       <div className="doc-title"><span>{subtitle}</span><h1>{title}</h1><p>Modelo: {template.name} · documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')}.</p></div>
 
       <section className="doc-party-grid">
         <div><span>CONTRATADA</span><strong>{settings.legalName}</strong><p>{settings.document}<br />{settings.address}<br />{settings.city}<br />{settings.financeEmail || settings.email}</p></div>
-        <div><span>CONTRATANTE</span><strong>{event.clientName}</strong><p>CPF/CNPJ: {event.clientDocument || 'Não informado'}{event.clientRg ? <><br />RG: {event.clientRg}</> : null}{event.clientAddress ? <><br />{event.clientAddress}</> : null}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}</p></div>
+        <div><span>CONTRATANTE</span><strong>{event.clientName}</strong><p>CPF/CNPJ: {event.clientDocument || 'Não informado'}{event.clientRg ? <><br />RG: {event.clientRg}</> : null}{event.clientAddress ? <><br />{event.clientAddress}</> : null}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}{event.clientPhoneSecondary ? <><br />Contato adicional: {event.clientPhoneSecondary}</> : null}</p></div>
       </section>
 
       <section className="doc-section">
@@ -1870,17 +2102,9 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
           <div><span>Data</span><strong>{dateBR(event.eventDate)}</strong></div>
           <div><span>Horário</span><strong>{event.startTime} — {event.endTime}</strong></div>
           <div><span>Convidados</span><strong>{event.guests} pessoas</strong></div>
-          <div className="wide"><span>Local</span><strong>{event.venue}</strong></div>
+          <div className="wide"><span>Local</span><strong>{event.venue}{event.venueAddress ? ' · ' + event.venueAddress : ''}</strong></div>
         </div>
-        {event.eventType === 'Aniversário' && (event.celebrantName || event.theme || event.celebrantAge) && (
-          <div className="doc-celebrant-grid">
-            <div><span>Aniversariante</span><strong>{event.celebrantName || '—'}</strong></div>
-            <div><span>Idade</span><strong>{event.celebrantAge || '—'}</strong></div>
-            <div><span>Tema</span><strong>{event.theme || '—'}</strong></div>
-            <div><span>Pai / Mãe</span><strong>{[event.fatherName, event.motherName].filter(Boolean).join(' / ') || '—'}</strong></div>
-            {event.siblings && <div className="wide"><span>Irmãos</span><strong>{event.siblings}</strong></div>}
-          </div>
-        )}
+
       </section>
 
       {template.type === 'services' && (
@@ -1897,7 +2121,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
 
       <section className="doc-section">
         <div className="doc-section-head"><span>{template.type === 'services' ? '03' : '02'}</span><h2>{template.type === 'services' ? 'Opcionais e serviços adicionais' : 'Condições da locação'}</h2></div>
-        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}</span><b>{service.pricing === 'person' ? money(service.price) + '/pessoa' : service.price > 0 ? money(service.price) : 'A definir'}</b></div>)}</div> : <p className="doc-muted">Nenhum opcional adicional selecionado.</p>}
+        {services.length ? <div className="doc-service-list">{services.map((service) => <div key={service.id}><CheckCircle2 size={16} /><span><strong>{service.name}</strong>{service.description}{(service.quantity || 1) > 1 ? ' · ' + service.quantity + ' unidades' : ''}</span><b>{money(service.pricing === 'person' ? service.price * event.guests * (service.quantity || 1) : service.price * (service.quantity || 1))}</b></div>)}</div> : <p className="doc-muted">Nenhum opcional adicional selecionado.</p>}
       </section>
 
       <section className="doc-section">
@@ -1905,8 +2129,8 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <div className="doc-financial">
           <div><span>Valor por pessoa</span><strong>{template.type === 'services' ? money(menuPrice) : '—'}</strong></div>
           <div><span>Valor total</span><strong>{money(total)}</strong></div>
-          <div><span>Sinal registrado</span><strong>{money(event.deposit)}</strong></div>
-          <div><span>Saldo previsto</span><strong>{money(Math.max(0, total - event.deposit))}</strong></div>
+          <div><span>Total recebido</span><strong>{money(receivedTotal(event))}</strong></div>
+          <div><span>Saldo a receber</span><strong>{money(Math.max(0, total - receivedTotal(event)))}</strong></div>
         </div>
         <p className="doc-clause"><strong>Pagamento.</strong> {settings.paymentTerms}</p>
         <p className="doc-clause"><strong>Cancelamento.</strong> {template.cancellationSummary}</p>
@@ -1938,7 +2162,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
           <span>SHA-256: {event.signature.auditHash}</span>
         </section>
       )}
-      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone} · {settings.email}{settings.website ? ' · ' + settings.website : ''}</span><span>{event.contractNumber}</span></footer>
+      <footer className="doc-footer"><span>{settings.businessName} · {settings.phone}{settings.secondaryPhone ? ' · ' + settings.secondaryPhone : ''} · {settings.email}{settings.website ? ' · ' + settings.website : ''}</span><span>{event.contractNumber}</span></footer>
     </article>
   )
 }
