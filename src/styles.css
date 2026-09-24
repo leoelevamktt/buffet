@@ -735,6 +735,42 @@ td strong{font-size:11px}
   .contract-document-custom .doc-service-list>div{grid-template-columns:minmax(0,1fr) auto;break-inside:avoid}
 }
 
+
+/* Refinamentos após revisão visual das versões personalizadas em telas de celular. */
+@media screen{
+  .contract-document .doc-akela-fields{gap:8px}
+  .contract-document .doc-akela-line>div{gap:5px;min-width:0}
+  .contract-document .doc-akela-line span,
+  .contract-document .doc-akela-line strong{font-size:11px;line-height:1.35}
+  .contract-document .doc-party-grid p{font-size:10px;line-height:1.55}
+  .contract-document .doc-data-grid strong{font-size:10px;line-height:1.45}
+  .contract-document .doc-section{overflow-wrap:anywhere}
+  .contract-editor-canvas .full-contract-edit .doc-akela-fields{gap:8px}
+}
+@media screen and (max-width:760px){
+  .contract-document .doc-akela-time-row,
+  .contract-document .doc-akela-line:has(>div:nth-child(3)){align-items:center;gap:8px 10px}
+  .contract-document .doc-akela-line:has(>div:nth-child(3))>div:nth-child(3){flex:0 0 100%;display:flex;align-items:center;justify-content:flex-start;gap:6px}
+  .contract-document .doc-akela-line:has(>div:nth-child(3))>div:nth-child(3)>strong{
+    flex:0 0 auto!important;min-width:max-content!important;white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important}
+
+  .contract-document .doc-akela-time-row>div:nth-child(1){flex:0 0 auto}
+  .contract-document .doc-akela-time-row>div:nth-child(2){flex:1 1 175px;min-width:0}
+  .contract-document .doc-akela-time-row>div:nth-child(3){flex:0 0 100%;display:flex;align-items:center;justify-content:flex-start;gap:6px}
+  .contract-document .doc-akela-time-row>div:nth-child(3)>strong{
+    flex:0 0 auto;min-width:0;white-space:nowrap;word-break:normal;overflow-wrap:normal;padding:0 3px 2px}
+  .contract-document .doc-akela-time-row>div:nth-child(3)>span{white-space:nowrap}
+  .contract-document .doc-akela-line strong{word-break:normal;overflow-wrap:break-word}
+  .contract-document .doc-akela-identity img{max-width:100%;max-height:145px}
+  .contract-editor-canvas .full-contract-edit .doc-akela-header{padding:10px 0 15px}
+  .contract-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .contract-actions .btn{min-height:44px;gap:6px}
+  .contract-actions .btn:last-child:nth-child(odd){grid-column:1/-1}
+}
+@media print{
+  .contract-document .doc-akela-time-row>div:last-child>strong{white-space:nowrap;overflow-wrap:normal}
+}
+
 @page{size:A4;margin:7mm 9mm}
 @media print{
   html,body{background:#fff!important}

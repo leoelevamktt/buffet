@@ -2190,7 +2190,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
       <header className="doc-akela-header">
         <div className="doc-akela-fields">
           <div className="doc-akela-line"><div className="grow"><span>{event.eventType === 'Aniversário' ? 'Aniversariante:' : 'Contratante:'}</span><strong data-contract-bind="headerPerson">{event.eventType === 'Aniversário' ? (event.celebrantName || event.clientName) : event.clientName}</strong></div></div>
-          <div className="doc-akela-line">
+          <div className="doc-akela-line doc-akela-time-row">
             <div><span>Idade:</span><strong data-contract-bind="age">{event.celebrantAge || ' '}</strong></div>
             <div className="grow"><span>Data:</span><strong data-contract-bind="date">{dateBR(event.eventDate)}</strong></div>
             <div><span>Das:</span><strong data-contract-bind="start">{event.startTime}</strong><span>às:</span><strong data-contract-bind="end">{event.endTime}</strong></div>
