@@ -1,5 +1,6 @@
-import { del, get, put } from '@vercel/blob'
+import { del, get, put, head } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
+import { canonicalHash, signedDocumentPayload, getTrustedIp, browserInfo, isEmail, EVIDENCE_VERSION } from './_audit.js'
 
 const pathnameFor = (token) => 'contracts/' + token + '.json'
 
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
       const contract = await readContract(token)
       if (!contract) return res.status(404).json({ error: 'Contrato não encontrado ou link inválido.' })
 
-      return res.status(200).json({ contract })
+      return res.status(200).json({ contract, emailVerificationRequired: Boolean(process.env.RESEND_API_KEY && process.env.SIGNING_FROM_EMAIL) })
     }
 
     if (req.method === 'DELETE') {
@@ -36,7 +37,8 @@ export default async function handler(req, res) {
       const contract = await readContract(token)
       if (!contract) return res.status(204).end()
       if (contract.status === 'signed') return res.status(409).json({ error: 'Contrato assinado não pode ser revogado.' })
-      await del(pathnameFor(token))
+      const metadata = await head(pathnameFor(token))
+      await del(pathnameFor(token), { ifMatch: metadata.etag })
       return res.status(204).end()
     }
 
@@ -44,15 +46,20 @@ export default async function handler(req, res) {
       const body = req.body || {}
       const { event, menu, services, settings, total, contractTemplate } = body
 
-      if (!event?.id || !event?.clientName || !event?.eventDate || !settings?.businessName) {
+      if (!event?.id || !event?.clientName || !event?.eventDate || !settings?.businessName || !isEmail(event?.clientEmail)) {
         return res.status(400).json({ error: 'Dados obrigatórios do contrato não foram informados.' })
       }
 
       const token = randomBytes(32).toString('base64url')
       const createdAt = new Date().toISOString()
+      const observed = getTrustedIp(req)
+      const document = signedDocumentPayload({ event: { ...event, signature: undefined, contractStatus: 'Enviado' }, menu: menu || null, services: Array.isArray(services) ? services : [], settings, total: Number(total) || 0, contractTemplate: contractTemplate || null })
       const contract = {
         token,
-        version: 1,
+        version: EVIDENCE_VERSION,
+        document,
+        documentHash: canonicalHash(document),
+        invitation: { createdAt, originIp: observed.ip, ipSource: observed.source, ...browserInfo(req), destinationEmail: String(event.clientEmail).trim().toLowerCase(), method: 'link compartilhável', deliveryVerified: false },
         status: 'pending',
         createdAt,
         event: {

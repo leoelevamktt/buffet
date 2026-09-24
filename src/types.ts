@@ -116,11 +116,26 @@ export interface ContractTemplate {
 export interface Signature {
   signerName: string
   signerDocument: string
+  signerEmail?: string
+  emailCode?: string
+  clientTimezone?: string
+  emailVerification?: { verified: boolean; method: string; verifiedAt?: string | null }
+  documentHash?: string
+  signatureImageHash?: string
+  verificationCode?: string
+  auditSeal?: string
+  auditAlgorithm?: string
+  receipt?: Record<string, unknown>
   dataUrl?: string
   signedAt: string
   auditHash?: string
   ip?: string
+  ipSource?: string
   userAgent?: string
+  acceptLanguage?: string
+  termsVersion?: string
+  signatureType?: string
+  evidenceVersion?: number
   method?: string
   accepted?: boolean
 }

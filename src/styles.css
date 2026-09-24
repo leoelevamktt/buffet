@@ -617,6 +617,124 @@ td strong{font-size:11px}
  .contract-document-custom .full-contract-fragment{break-inside:auto}
 }
 
+
+/* Contrato e auditoria: componentes consistentes no editor, link público, mobile e impressão. */
+.contract-document-custom .doc-service-list>div,
+.full-contract-edit .doc-service-list>div{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:14px;align-items:center}
+.contract-document-custom .doc-service-list>div>span,
+.full-contract-edit .doc-service-list>div>span{min-width:0;overflow-wrap:anywhere}
+.contract-document-custom .doc-service-list>div>b,
+.full-contract-edit .doc-service-list>div>b{grid-column:2;white-space:nowrap;font-weight:650}
+.contract-document-custom .doc-akela-header{grid-template-columns:minmax(0,1fr) minmax(125px,23%)}
+.contract-document-custom .doc-akela-identity img{height:auto;max-width:100%;object-fit:contain}
+.contract-document-custom .doc-akela-fields{min-width:0}
+.contract-document-custom .doc-akela-line{min-width:0;flex-wrap:wrap}
+.contract-document-custom .doc-akela-line>div{min-width:0;flex-wrap:wrap}
+.contract-document-custom .doc-akela-line span{white-space:normal}
+.contract-document-custom .doc-payment-details,
+.contract-document-custom .doc-party-grid,
+.contract-document-custom .doc-data-grid,
+.contract-document-custom .doc-financial{max-width:100%;min-width:0}
+.contract-document-custom .doc-title{margin-top:5px}
+.contract-document-custom .doc-section-head{display:flex;align-items:center;gap:12px}
+.contract-editor-canvas .full-contract-edit{
+  width:min(850px,calc(100vw - 40px));max-width:100%;
+  min-height:0;margin:18px auto 56px;padding:clamp(25px,5vw,54px);
+  font-family:Arial,sans-serif;line-height:1.48;font-size:10px;
+  border:1px solid #e8e5df;box-shadow:0 14px 40px rgba(15,30,21,.13)
+}
+.full-contract-edit .doc-title{margin:4px 0 0;padding:32px 0 22px}
+.full-contract-edit .doc-title h1{font-size:clamp(27px,3vw,35px);line-height:1.08}
+.full-contract-edit .doc-akela-header{grid-template-columns:minmax(0,1fr) minmax(126px,23%);gap:16px}
+.full-contract-edit .doc-akela-line{flex-wrap:wrap}
+.full-contract-edit .doc-akela-line>div{min-width:0;flex-wrap:wrap}
+.full-contract-edit .doc-akela-line span{white-space:normal}
+.full-contract-edit .doc-akela-fields{font-size:11px;gap:7px}
+.full-contract-edit .doc-akela-fields strong{min-width:20px}
+.full-contract-edit .doc-party-grid,.full-contract-edit .doc-data-grid,
+.full-contract-edit .doc-payment-details{overflow-wrap:anywhere;max-width:100%}
+.full-editor-tools .btn{font-size:10px}
+.full-editor-tools{position:sticky;top:0;z-index:8;box-shadow:0 2px 6px rgba(20,30,22,.04)}
+.signature-identity-note{background:#f8f4e9;border:1px solid #e6d8b8;padding:12px;font-size:10px;line-height:1.55;color:#655b45;margin:10px 0}
+.signature-otp{border:1px solid #dce7df;background:#f7faf7;padding:14px;margin:13px 0;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.signature-otp>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.signature-otp strong{font-size:12px}.signature-otp span,.signature-otp small{font-size:10px;color:#607060;line-height:1.4}
+.signature-otp .field{grid-column:1/-1;max-width:250px}
+.signature-identity-grid{margin:14px 0}
+.audit-stamp{margin:16px 0 22px;padding:18px;border:1px solid #d8e4d9;background:linear-gradient(145deg,#f7fbf7,#fff);overflow-wrap:anywhere}
+.audit-stamp header{display:flex;align-items:center;gap:10px;color:#285943;margin-bottom:15px}
+.audit-stamp header>div{display:flex;flex-direction:column;gap:4px}
+.audit-stamp header strong{font-size:12px}
+.audit-stamp header small{font-size:9px;color:#667b6c}
+.audit-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px;background:#fff;border:1px solid #e3e9e3}
+.audit-meta-grid>div{display:flex;flex-direction:column;min-width:0;gap:4px}
+.audit-meta-grid span,.audit-hash-line span{font-size:9px;letter-spacing:.03em;color:#6a786c}
+.audit-meta-grid strong{font-size:10px;color:#243b2e;overflow-wrap:anywhere}
+.audit-hash-line{padding:9px 0;border-bottom:1px solid #e1e9e2;display:flex;flex-direction:column;gap:4px}
+.audit-hash-line code{font:10px/1.5 ui-monospace,Consolas,monospace;color:#25362c;overflow-wrap:anywhere;word-break:break-all}
+.audit-verify-line{display:flex;flex-direction:column;gap:5px;margin:12px 0;padding:12px;background:#ebf3ec}
+.audit-verify-line>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.audit-verify-line strong{font-size:10px}.audit-verify-line code{font:11px ui-monospace,monospace;overflow-wrap:anywhere}
+.audit-verify-line small{font-size:9px;line-height:1.4;overflow-wrap:anywhere}
+.audit-stamp>p{font-size:9px;line-height:1.5;color:#69786a;margin:10px 0 0}
+.signed-success-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.signed-success-actions .btn{font-size:10px;min-height:40px}
+
+
+.verification-page{min-height:100dvh;background:#e9eae5;padding-bottom:50px;color:#233329}
+.verification-header{height:80px;background:#1b2921;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px clamp(16px,5vw,70px)}
+.verification-header>div{display:flex;align-items:center;gap:14px;min-width:0}
+.verification-header img{width:65px;height:50px;object-fit:contain}
+.verification-header>div>span{display:flex;flex-direction:column;gap:3px}
+.verification-header strong{font-size:12px}.verification-header small{font-size:9px;color:#c6d3c8}
+.verification-header .btn-quiet{color:#fff;border-color:#6a816e}
+.verification-sheet{width:min(780px,calc(100% - 36px));margin:32px auto;padding:44px 50px 27px;background:#fff;border:1px solid #dddcd4;box-shadow:0 10px 33px rgba(22,33,26,.06)}
+.verification-eyebrow{font-size:10px;font-weight:800;letter-spacing:.12em;color:#667e6a;display:flex;align-items:center;gap:8px}
+.verification-sheet h1{font-family:Georgia,serif;font-size:clamp(26px,4vw,37px);line-height:1.2;margin:14px 0 28px;font-weight:400}
+.verification-status{display:flex;gap:15px;align-items:center;padding:18px;margin:10px 0 24px}
+.verification-status.good{background:#edf6ef;border:1px solid #cbdcce;color:#25523b}
+.verification-status.bad{background:#fbedea;border:1px solid #efc6bb;color:#9e3b2b}
+.verification-status>div{display:flex;flex-direction:column;gap:5px}
+.verification-status strong{font-size:14px}.verification-status span{font-size:10px;line-height:1.55}
+.verification-details{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:25px}
+.verification-details>div{display:flex;flex-direction:column;gap:6px;padding:13px;background:#f9f9f5;min-width:0}
+.verification-details span{font-size:10px;color:#6f776e}
+.verification-details strong{font-size:12px;overflow-wrap:anywhere}
+.verification-details code,.verification-hashes code{font:11px/1.5 ui-monospace,Consolas,monospace;word-break:break-all}
+.verification-hashes{border:1px solid #dfe6df;padding:20px;display:flex;flex-direction:column;gap:6px}
+.verification-hashes h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.verification-hashes label{font-size:10px;color:#68766a;margin-top:10px}
+.verification-hashes code{padding:12px;background:#f5f7f3;color:#2b4032}
+.verification-hashes small{font-size:9px;color:#6f766e;line-height:1.5;margin-top:8px}
+.verification-disclaimer{margin-top:24px;border-left:3px solid #c5ae75;padding:9px 15px;background:#faf7ee;color:#615943;font-size:10px;line-height:1.6}
+.verification-sheet footer{border-top:1px solid #dfe5de;padding-top:16px;margin-top:29px;font-size:9px;color:#7e857c}
+@media(max-width:760px){
+  .contract-document-custom .doc-akela-header,.full-contract-edit .doc-akela-header{grid-template-columns:minmax(0,1fr)!important;gap:9px}
+  .contract-document-custom .doc-akela-identity,.full-contract-edit .doc-akela-identity{grid-row:1;align-items:center;justify-content:flex-start}
+  .contract-document-custom .doc-akela-fields,.full-contract-edit .doc-akela-fields{grid-row:2}
+  .contract-editor-canvas .full-contract-edit{width:100%;padding:20px 14px;margin:0;box-shadow:none;border:0}
+  .audit-meta-grid,.verification-details{grid-template-columns:1fr}
+  .signature-otp{grid-template-columns:1fr}
+  .verification-header{height:auto;min-height:72px;padding:10px 13px;flex-wrap:wrap}
+  .verification-header .btn{width:100%}
+  .verification-sheet{width:calc(100% - 16px);margin:8px auto;padding:28px 18px}
+  .verification-status{align-items:flex-start}
+  .signed-success-actions .btn{width:100%}
+}
+@media print{
+  .verification-page{padding:0;background:#fff;min-height:0}
+  .verification-sheet{width:100%;margin:0;padding:0;box-shadow:none;border:0}
+  .audit-stamp{break-inside:avoid-page}
+  .audit-stamp header{margin-bottom:2mm}
+  .audit-meta-grid{gap:1.5mm;padding:2mm}
+  .audit-stamp,.audit-verify-line{padding:2mm}
+  .audit-hash-line{padding:.8mm 0}
+  .audit-hash-line code{font-size:6.4pt}
+  .audit-stamp header strong{font-size:8pt}
+  .contract-document-custom .doc-akela-header{grid-template-columns:minmax(0,1fr) 35mm;gap:4mm}
+  .contract-document-custom .doc-service-list>div{grid-template-columns:minmax(0,1fr) auto;break-inside:avoid}
+}
+
 @page{size:A4;margin:7mm 9mm}
 @media print{
   html,body{background:#fff!important}

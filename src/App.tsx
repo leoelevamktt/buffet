@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
   UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
-  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck
 } from 'lucide-react'
 import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from './data'
 import { contractTemplates, getContractTemplate } from './materials'
@@ -17,6 +17,7 @@ import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal,
 import { brandMark } from './brand'
 import { PaymentsModal } from './components/PaymentsModal'
 import { ServiceEditor } from './components/ServiceEditor'
+import { VerificationPage } from './components/VerificationPage'
 import { hydrateFullContractHtml, prepareFullContractEditorHtml, sanitizeFullContractHtml, validateFullContractHtml } from './fullContract'
 import './styles.css'
 
@@ -43,6 +44,9 @@ interface RemoteContract {
   total: number
   contractTemplate?: ContractTemplate
   signature?: NonNullable<BuffetEvent['signature']> | null
+  document?: { event: BuffetEvent; menu: MenuItem | null; services: ServiceItem[]; settings: BusinessSettings; total: number; contractTemplate: ContractTemplate | null }
+  documentHash?: string
+  invitation?: { createdAt: string; destinationEmail: string }
 }
 
 interface RemoteQuote {
@@ -2106,6 +2110,30 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
   )
 }
 
+function AuditStamp({ signature }: { signature?: BuffetEvent['signature'] }) {
+  if (!signature?.auditHash) return null
+  const verified = Boolean(signature.verificationCode && signature.documentHash)
+  return (
+    <section className="audit-evidence audit-stamp">
+      <header><ShieldCheck size={19} /><div><strong>Registro técnico da assinatura eletrônica</strong>
+        <small>{verified ? 'Documento e evidências vinculados por hashes criptográficos' : 'Registro de assinatura em formato anterior'}</small></div></header>
+      <div className="audit-meta-grid">
+        <div><span>Signatário declarado</span><strong>{signature.signerName}</strong></div>
+        <div><span>Horário registrado (servidor)</span><strong>{new Date(signature.signedAt).toLocaleString('pt-BR')}</strong></div>
+        {signature.signerEmail && <div><span>E-mail registrado</span><strong>{signature.signerEmail}</strong></div>}
+        {verified && <div><span>Confirmação de e-mail</span><strong>{signature.emailVerification?.verified ? 'Confirmado por código' : 'Não confirmado independentemente'}</strong></div>}
+      </div>
+      {signature.documentHash && <div className="audit-hash-line"><span>SHA-256 do documento</span><code>{signature.documentHash}</code></div>}
+      <div className="audit-hash-line"><span>SHA-256 do recibo técnico</span><code>{signature.auditHash}</code></div>
+      {signature.verificationCode && <div className="audit-verify-line">
+        <div><strong>Código de conferência</strong><code>{signature.verificationCode}</code></div>
+        <small>Conferir em {window.location.origin}/verificar/{signature.verificationCode}</small>
+      </div>}
+      <p>Assinatura eletrônica com registro de evidências. Não representa certificado ICP-Brasil nem assinatura PAdES.</p>
+    </section>
+  )
+}
+
 function ContractDocument({ event, menu, services, settings, total, templateOverride }: {
   event: BuffetEvent
   menu?: MenuItem
@@ -2151,13 +2179,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
         <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>
       </section>
-      {event.signature?.auditHash && (
-        <section className="audit-evidence">
-          <div><CheckCircle2 size={16} /><strong>Registro eletrônico de assinatura</strong></div>
-          <p>Assinado em {new Date(event.signature.signedAt).toLocaleString('pt-BR')} por {event.signature.signerName}.</p>
-          <span>SHA-256: {event.signature.auditHash}</span>
-        </section>
-      )}
+      <AuditStamp signature={event.signature} />
       <div data-full-contract-fragment="1" className="full-contract-fragment"
         dangerouslySetInnerHTML={{ __html: fullDocument.after }} />
     </article>
@@ -2252,26 +2274,26 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>
       </section>
 
-      {event.signature?.auditHash && (
-        <section className="audit-evidence">
-          <div><CheckCircle2 size={16} /><strong>Registro eletrônico de assinatura</strong></div>
-          <p>Assinado em {new Date(event.signature.signedAt).toLocaleString('pt-BR')} por {event.signature.signerName}.</p>
-          <span>SHA-256: {event.signature.auditHash}</span>
-        </section>
-      )}
+      <AuditStamp signature={event.signature} />
       <footer className="doc-footer"><span>{settings.businessName} · {settings.phone}{settings.secondaryPhone ? ' · ' + settings.secondaryPhone : ''} · {settings.email}{settings.website ? ' · ' + settings.website : ''}</span><span>{event.contractNumber}</span></footer>
     </article>
   )
 }
 
-function SignatureModal({ event, onClose, onSign }: {
+function SignatureModal({ event, onClose, onSign, token, emailVerificationRequired }: {
   event: BuffetEvent
   onClose: () => void
   onSign: (signature: NonNullable<BuffetEvent['signature']>) => Promise<void> | void
+  token: string
+  emailVerificationRequired: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [name, setName] = useState(event.clientName)
   const [document, setDocument] = useState(event.clientDocument)
+  const [email, setEmail] = useState(event.clientEmail || '')
+  const [emailCode, setEmailCode] = useState('')
+  const [sendingCode, setSendingCode] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [hasDrawn, setHasDrawn] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -2307,6 +2329,23 @@ function SignatureModal({ event, onClose, onSign }: {
     ctx.stroke()
   }
   const stop = () => { drawing.current = false }
+  const requestEmailCode = async () => {
+    setSendingCode(true)
+    setError('')
+    try {
+      if (email.trim().toLowerCase() !== (event.clientEmail || '').trim().toLowerCase())
+        throw new Error('Informe o mesmo e-mail que consta no contrato.')
+      const response = await fetch('/api/otp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Falha ao enviar o código.')
+      setCodeSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao enviar o código.')
+    } finally { setSendingCode(false) }
+  }
   const clear = () => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
@@ -2315,13 +2354,16 @@ function SignatureModal({ event, onClose, onSign }: {
     setError('')
   }
   const submit = async () => {
-    if (!accepted || !name.trim() || !document.trim() || !hasDrawn || !canvasRef.current) return
+    if (!accepted || !name.trim() || !document.trim() || !email.trim() || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || !canvasRef.current) return
     setSubmitting(true)
     setError('')
     try {
       await onSign({
         signerName: name.trim(),
         signerDocument: document.trim(),
+        signerEmail: email.trim(),
+        emailCode: emailCode.trim(),
+        clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         dataUrl: canvasRef.current.toDataURL('image/png'),
         signedAt: new Date().toISOString(),
         accepted: true
@@ -2339,14 +2381,35 @@ function SignatureModal({ event, onClose, onSign }: {
         <button className="modal-close" onClick={onClose} disabled={submitting}><X size={20} /></button>
         <div className="signature-icon"><PenLine size={22} /></div>
         <span className="eyebrow">ASSINATURA ELETRÔNICA</span><h2>Confirme o aceite.</h2>
-        <p className="lead">Revise seus dados e desenhe sua assinatura. Ao confirmar, o sistema registra a evidência técnica deste aceite.</p>
-        <div className="form-grid two"><Field label="Nome completo *" value={name} onChange={setName} /><Field label="CPF / CNPJ *" value={document} onChange={setDocument} /></div>
+        <p className="lead">Confira seus dados e leia o contrato antes de assinar. O sistema registra a versão do documento e as evidências técnicas do aceite.</p>
+        <div className="form-grid two signature-identity-grid">
+          <Field label="Nome completo *" value={name} onChange={setName} />
+          <Field label="CPF / CNPJ *" value={document} onChange={setDocument} />
+          <div className="field span-2"><label>E-mail do signatário *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@email.com" autoComplete="email" />
+            <small>O endereço deve corresponder ao informado no contrato.</small>
+          </div>
+        </div>
+        {emailVerificationRequired ? (
+          <div className="signature-otp">
+            <div><strong>Confirmação de e-mail</strong><span>Enviaremos um código único para o endereço cadastrado.</span></div>
+            <button className="btn btn-quiet" type="button" onClick={requestEmailCode} disabled={sendingCode || !email.includes('@')}>
+              {sendingCode ? 'Enviando...' : codeSent ? 'Reenviar código' : 'Enviar código'}
+            </button>
+            {codeSent && <div className="field"><label>Código recebido *</label>
+              <input inputMode="numeric" maxLength={6} pattern="[0-9]*" value={emailCode} onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ''))} placeholder="6 dígitos" />
+              <small>O código expira após 10 minutos.</small>
+            </div>}
+          </div>
+        ) : (
+          <div className="signature-identity-note">A confirmação independente de e-mail ainda não está habilitada. Nome, documento e e-mail são declarados pelo signatário, e a assinatura registra evidências técnicas; este fluxo não constitui assinatura qualificada ICP-Brasil.</div>
+        )}
         <div className="signature-pad-head"><label>Assinatura *</label><button onClick={clear} disabled={submitting}>Limpar</button></div>
         <canvas ref={canvasRef} width={800} height={220} className="signature-pad" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onPointerLeave={stop} />
-        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Declaro que li integralmente o contrato, concordo com seus termos e reconheço esta assinatura eletrônica como manifestação do meu aceite.</span></label>
+        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do contrato, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
         {error && <div className="signature-error">{error}</div>}
-        <button className="btn btn-primary full" disabled={!accepted || !name.trim() || !document.trim() || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir contrato'}</button>
-        <small className="legal-note">O registro inclui data e hora, IP, dispositivo/navegador e hash SHA-256 do conteúdo assinado. Guarde uma cópia do contrato após a conclusão.</small>
+        <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir contrato'}</button>
+        <small className="legal-note">Será gerado um código único de conferência, SHA-256 da versão do documento, hash do recibo e selo de auditoria do servidor. Isso não é certificado ICP-Brasil nem assinatura digital PAdES.</small>
       </div>
     </div>
   )
@@ -2357,6 +2420,7 @@ function PublicSigningPage({ token }: { token: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [signing, setSigning] = useState(false)
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(false)
 
   const loadContract = async () => {
     setLoading(true)
@@ -2366,6 +2430,7 @@ function PublicSigningPage({ token }: { token: string }) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Contrato não encontrado.')
       setContract(data.contract)
+      setEmailVerificationRequired(Boolean(data.emailVerificationRequired))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar o contrato.')
     } finally {
@@ -2385,6 +2450,9 @@ function PublicSigningPage({ token }: { token: string }) {
         token,
         signerName: signature.signerName,
         signerDocument: signature.signerDocument,
+        signerEmail: signature.signerEmail,
+        emailCode: signature.emailCode,
+        clientTimezone: signature.clientTimezone,
         dataUrl: signature.dataUrl,
         accepted: true
       })
@@ -2405,10 +2473,12 @@ function PublicSigningPage({ token }: { token: string }) {
   }
 
   const signedEvent: BuffetEvent = {
-    ...contract.event,
+    ...(contract.status === 'signed' && contract.document ? contract.document.event : contract.event),
     signature: contract.signature || contract.event.signature
   }
   const isSigned = contract.status === 'signed' && Boolean(contract.signature)
+  const reportLink = '/api/evidence?token=' + encodeURIComponent(token)
+  const verificationLink = contract.signature?.verificationCode ? '/verificar/' + encodeURIComponent(contract.signature.verificationCode) : ''
 
   return (
     <div className="public-contract-page">
@@ -2426,16 +2496,21 @@ function PublicSigningPage({ token }: { token: string }) {
       {isSigned ? (
         <div className="signed-success no-print">
           <CheckCircle2 size={22} />
-          <div><strong>Contrato assinado com sucesso</strong><span>Uma cópia pode ser salva usando “Imprimir / PDF”. O documento abaixo já contém a evidência da assinatura.</span></div>
+          <div><strong>Contrato assinado e registrado</strong><span>Guarde o documento e o comprovante técnico de auditoria, com código e hashes de verificação.</span>
+            <div className="signed-success-actions">
+              {verificationLink && <a className="btn btn-quiet" href={verificationLink} target="_blank" rel="noreferrer"><ShieldCheck size={15} /> Conferir registro</a>}
+              {contract.signature?.receipt && <a className="btn btn-quiet" href={reportLink}><FileText size={15} /> Baixar comprovante JSON</a>}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="signing-intro no-print">
-          <div><span className="eyebrow">ASSINATURA DIGITAL</span><strong>Olá, {contract.event.clientName}.</strong><p>Leia o contrato completo. Quando estiver de acordo, use o botão abaixo para assinar eletronicamente.</p></div>
+          <div><span className="eyebrow">ASSINATURA ELETRÔNICA</span><strong>Olá, {contract.event.clientName}.</strong><p>Leia o contrato completo. Quando estiver de acordo, use o botão abaixo para assinar eletronicamente.</p></div>
           <button className="btn btn-primary" onClick={() => setSigning(true)}><PenLine size={17} /> Revisar e assinar</button>
         </div>
       )}
 
-      <ContractDocument event={signedEvent} menu={contract.menu || undefined} services={contract.services} settings={contract.settings} total={contract.total} templateOverride={contract.contractTemplate} />
+      <ContractDocument event={signedEvent} menu={(isSigned && contract.document ? contract.document.menu : contract.menu) || undefined} services={isSigned && contract.document ? contract.document.services : contract.services} settings={isSigned && contract.document ? contract.document.settings : contract.settings} total={isSigned && contract.document ? contract.document.total : contract.total} templateOverride={(isSigned && contract.document ? contract.document.contractTemplate : contract.contractTemplate) || undefined} />
 
       {!isSigned && (
         <div className="public-sign-sticky no-print">
@@ -2444,7 +2519,7 @@ function PublicSigningPage({ token }: { token: string }) {
         </div>
       )}
 
-      {signing && <SignatureModal event={contract.event} onClose={() => setSigning(false)} onSign={signContract} />}
+      {signing && <SignatureModal event={contract.document?.event || contract.event} token={token} emailVerificationRequired={emailVerificationRequired} onClose={() => setSigning(false)} onSign={signContract} />}
     </div>
   )
 }
@@ -2511,6 +2586,8 @@ function PublicQuotePage({ token }: { token: string }) {
 function App() {
   const signingMatch = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
   const quoteMatch = window.location.pathname.match(/^\/orcamento\/([^/]+)$/)
+  const verificationMatch = window.location.pathname.match(/^\/verificar\/([^/]+)$/)
+  if (verificationMatch) return <VerificationPage code={verificationMatch[1]} />
   if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
   if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
   return <AdminApp />
