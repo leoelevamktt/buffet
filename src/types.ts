@@ -215,4 +215,4 @@ export interface BusinessSettings {
   cancellationTerms: string
 }
 
-export type Section = 'dashboard' | 'events' | 'menus' | 'contracts' | 'agenda' | 'settings'
+export type Section = 'dashboard' | 'events' | 'menus' | 'contracts' | 'receipts' | 'agenda' | 'settings'

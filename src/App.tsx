@@ -16,6 +16,9 @@ import type { BuffetEvent, BusinessSettings, ContractTemplate, EventServiceItem,
 import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal, initialReceivedPayments, money, phoneDigits, receivedTotal, shortDate, statusClass } from './utils'
 import { brandMark } from './brand'
 import { PaymentsModal } from './components/PaymentsModal'
+import { ReceiptPreview } from './components/ReceiptPreview'
+import { ReceiptsView } from './components/ReceiptsView'
+import { createReceipt, receiptMatchesPayment, type PaymentReceipt } from './receipts'
 import { ServiceEditor } from './components/ServiceEditor'
 import { VerificationPage } from './components/VerificationPage'
 import { hydrateFullContractHtml, prepareFullContractEditorHtml, sanitizeFullContractHtml, validateFullContractHtml } from './fullContract'
@@ -26,6 +29,7 @@ const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'events', label: 'Eventos', icon: Sparkles },
   { id: 'menus', label: 'Cardápios', icon: UtensilsCrossed },
   { id: 'contracts', label: 'Contratos', icon: FileSignature },
+  { id: 'receipts', label: 'Recibos', icon: FileText },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'settings', label: 'Configurações', icon: Settings }
 ]
@@ -109,11 +113,14 @@ function AdminApp() {
   const [activeContractId, setActiveContractId] = useState<string | null>(null)
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
   const [activePaymentsId, setActivePaymentsId] = useState<string | null>(null)
+  const [activeReceiptId, setActiveReceiptId] = useState<string | null>(null)
+  const [receipts, setReceipts] = useLocalStorage<PaymentReceipt[]>('akela-receipts', [])
   const [toast, setToast] = useState('')
 
   const activeContract = events.find((item) => item.id === activeContractId)
   const activeQuote = events.find((item) => item.id === activeQuoteId)
   const activePayments = events.find((item) => item.id === activePaymentsId)
+  const activeReceipt = receipts.find((item) => item.id === activeReceiptId)
   const editingEvent = events.find((item) => item.id === editingEventId)
 
   useEffect(() => {
@@ -260,9 +267,37 @@ function AdminApp() {
     notify('Evento atualizado. Links antigos foram invalidados para preservar a versão correta.')
   }
 
+  const issueReceipt = (eventId: string, paymentId: string, description: string) => {
+    const event = events.find((item) => item.id === eventId)
+    const payment = event?.receivedPayments?.find((item) => item.id === paymentId)
+    if (!event || !payment) throw new Error('Este pagamento ainda não foi salvo. Registre o recebimento antes de emitir.')
+    const created = createReceipt(receipts, event, payment, settings, description)
+    setReceipts((items) => [created, ...items])
+    setActiveReceiptId(created.id)
+    notify('Recibo ' + created.number + ' emitido. Você pode visualizar e salvar em PDF.')
+  }
+
+  const cancelReceipt = (receipt: PaymentReceipt) => {
+    if (receipt.status !== 'issued') return
+    const reason = window.prompt('Por que este recibo precisa ser cancelado? O registro será preservado no histórico.')
+    if (!reason) return
+    if (reason.trim().length < 5) { notify('Informe um motivo de cancelamento com pelo menos 5 caracteres.'); return }
+    if (!window.confirm('Confirmar cancelamento do recibo ' + receipt.number + '? O pagamento continuará registrado.')) return
+    setReceipts((items) => items.map((item) => item.id === receipt.id && item.status === 'issued'
+      ? { ...item, status: 'cancelled' as const, cancelledAt: new Date().toISOString(), cancelReason: reason.trim().slice(0, 500) }
+      : item))
+    notify('Recibo cancelado. O registro original foi mantido e poderá ser consultado.')
+  }
+
   const saveReceivedPayments = async (id: string, payments: ReceivedPayment[]) => {
     const current = events.find((item) => item.id === id)
     if (!current) return
+    const issued = receipts.filter((receipt) => receipt.eventId === id && receipt.status === 'issued')
+    for (const receipt of issued) {
+      const changedPayment = payments.find((item) => item.id === receipt.paymentId)
+      if (!receiptMatchesPayment(receipt, changedPayment) || receipt.payment.notes !== (changedPayment?.notes || ''))
+        throw new Error('O recebimento do recibo ' + receipt.number + ' está protegido. Cancele o recibo antes de alterar ou excluir esse lançamento.')
+    }
     if (payments.some((item) => (!item.date && !item.id.startsWith('legacy-')) || !Number.isFinite(item.amount) || item.amount <= 0)) {
       throw new Error('Informe data e valor positivo em todos os recebimentos.')
     }
@@ -319,6 +354,9 @@ function AdminApp() {
           {section === 'contracts' && (
             <ContractsView events={events} menus={menus} services={services} onOpen={setActiveContractId} />
           )}
+          {section === 'receipts' && <ReceiptsView receipts={receipts} events={events}
+            onPreview={setActiveReceiptId} onOpenPayments={setActivePaymentsId}
+            onGoEvents={() => setSection('events')} />}
           {section === 'agenda' && <AgendaView events={events} />}
           {section === 'settings' && <SettingsView settings={settings} setSettings={setSettings} notify={notify} />}
         </div>
@@ -353,7 +391,10 @@ function AdminApp() {
       {activePayments && (
         <PaymentsModal event={activePayments} total={eventTotal(activePayments, menus, services)}
           onClose={() => setActivePaymentsId(null)}
-          onSave={saveReceivedPayments} />
+          onSave={saveReceivedPayments}
+          receipts={receipts}
+          onIssueReceipt={issueReceipt}
+          onPreviewReceipt={setActiveReceiptId} />
       )}
       {activeContract && (
         <ContractModal
@@ -368,6 +409,8 @@ function AdminApp() {
         />
       )}
 
+      {activeReceipt && <ReceiptPreview receipt={activeReceipt}
+        onClose={() => setActiveReceiptId(null)} onCancel={cancelReceipt} />}
       {toast && <div className="toast"><CheckCircle2 size={18} />{toast}</div>}
     </div>
   )
@@ -407,7 +450,7 @@ function MobileNav({ section, onNavigate, onNewEvent }: {
   onNavigate: (section: Section) => void
   onNewEvent: () => void
 }) {
-  const items = navItems.slice(0, 4)
+  const items = navItems.slice(0, 5)
   return (
     <nav className="mobile-nav">
       {items.map(({ id, label, icon: Icon }) => (
@@ -2078,7 +2121,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
                 <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
               </select></label>}
             <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato inteiro</button>
-            <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos</button>
+            <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos / Recibos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
             <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing || event.contractStatus === 'Assinado'}><Send size={17} /> {sharing ? 'Gerando...' : 'WhatsApp'}</button>

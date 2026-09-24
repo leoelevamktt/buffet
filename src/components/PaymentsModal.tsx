@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, CircleDollarSign, Plus, Trash2, X } from 'lucide-react'
+import { Check, FileText, Plus, ReceiptText, Trash2, X } from 'lucide-react'
+import { activeReceiptForPayment, defaultReceiptDescription, type PaymentReceipt } from '../receipts'
 import type { BuffetEvent, ReceivedPayment } from '../types'
 import { dateBR, initialReceivedPayments, money } from '../utils'
 import { uid } from '../storage'
@@ -9,12 +10,17 @@ type Props = {
   total: number
   onClose: () => void
   onSave: (id: string, payments: ReceivedPayment[]) => Promise<void>
+  receipts: PaymentReceipt[]
+  onIssueReceipt: (eventId: string, paymentId: string, description: string) => void
+  onPreviewReceipt: (receiptId: string) => void
 }
 
-export function PaymentsModal({ event, total, onClose, onSave }: Props) {
+export function PaymentsModal({ event, total, onClose, onSave, receipts, onIssueReceipt, onPreviewReceipt }: Props) {
   const [payments, setPayments] = useState<ReceivedPayment[]>(() => initialReceivedPayments(event))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [issuingFor, setIssuingFor] = useState<string | null>(null)
+  const [receiptDescription, setReceiptDescription] = useState('')
   const received = payments.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
   const balance = Math.max(0, total - received)
   const change = (id: string, patch: Partial<ReceivedPayment>) =>
@@ -23,6 +29,24 @@ export function PaymentsModal({ event, total, onClose, onSave }: Props) {
     id: uid('pay'), date: new Date().toISOString().slice(0, 10),
     method: 'PIX', amount: 0, reference: '', notes: ''
   }])
+  const locked = (id: string) => Boolean(activeReceiptForPayment(receipts, event.id, id))
+  const isSaved = (payment: ReceivedPayment) => {
+    const saved = event.receivedPayments?.find((item) => item.id === payment.id)
+    return Boolean(saved && saved.date === payment.date && saved.amount === payment.amount &&
+      saved.method === payment.method && (saved.reference || '') === (payment.reference || ''))
+  }
+  const startIssue = (payment: ReceivedPayment) => {
+    setError('')
+    setIssuingFor(payment.id)
+    setReceiptDescription(payment.notes?.trim() || defaultReceiptDescription(event))
+  }
+  const issue = (payment: ReceivedPayment) => {
+    try {
+      onIssueReceipt(event.id, payment.id, receiptDescription)
+      setIssuingFor(null)
+      setError('')
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível emitir o recibo.') }
+  }
   const save = async () => {
     setError('')
     if (payments.some((payment) => (!payment.date && !payment.id.startsWith('legacy-')) || !(payment.amount > 0))) {
@@ -59,20 +83,46 @@ export function PaymentsModal({ event, total, onClose, onSave }: Props) {
             <div className="finance-entry" key={payment.id}>
               <div className="finance-entry-title">
                 <strong>Recebimento {index + 1}</strong>
-                <button className="icon-button danger" onClick={() => {
+                <button className="icon-button danger" disabled={Boolean(activeReceiptForPayment(receipts, event.id, payment.id))} title={activeReceiptForPayment(receipts, event.id, payment.id) ? 'Cancele o recibo emitido antes de excluir o pagamento' : 'Excluir recebimento'} onClick={() => {
                   if (window.confirm('Excluir este recebimento do histórico?'))
                     setPayments((old) => old.filter((item) => item.id !== payment.id))
                 }} aria-label="Excluir recebimento"><Trash2 size={17} /></button>
               </div>
               <div className="form-grid two">
-                <div className="field"><label>Data de recebimento</label><input type="date" value={payment.date} onChange={(e) => change(payment.id, { date: e.target.value })} /></div>
-                <div className="field"><label>Valor recebido (R$)</label><input type="number" min="0.01" step="0.01" value={payment.amount || ''} onChange={(e) => change(payment.id, { amount: Number(e.target.value) })} /></div>
-                <div className="field"><label>Forma de pagamento</label><select value={payment.method} onChange={(e) => change(payment.id, { method: e.target.value })}>
+                <div className="field"><label>Data de recebimento</label><input type="date" value={payment.date} disabled={locked(payment.id)} onChange={(e) => change(payment.id, { date: e.target.value })} /></div>
+                <div className="field"><label>Valor recebido (R$)</label><input type="number" min="0.01" step="0.01" value={payment.amount || ''} disabled={locked(payment.id)} onChange={(e) => change(payment.id, { amount: Number(e.target.value) })} /></div>
+                <div className="field"><label>Forma de pagamento</label><select value={payment.method} disabled={locked(payment.id)} onChange={(e) => change(payment.id, { method: e.target.value })}>
                   {['PIX', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Transferência', 'Depósito', 'Cheque', 'Outro', 'A confirmar'].map((method) => <option key={method}>{method}</option>)}
                 </select></div>
-                <div className="field"><label>Nº do cheque / comprovante</label><input value={payment.reference || ''} onChange={(e) => change(payment.id, { reference: e.target.value })} placeholder="Opcional" /></div>
-                <div className="field span-2"><label>Observações</label><input value={payment.notes || ''} onChange={(e) => change(payment.id, { notes: e.target.value })} placeholder="Opcional" /></div>
+                <div className="field"><label>Nº do cheque / comprovante</label><input value={payment.reference || ''} disabled={locked(payment.id)} onChange={(e) => change(payment.id, { reference: e.target.value })} placeholder="Opcional" /></div>
+                <div className="field span-2"><label>Observações</label><input value={payment.notes || ''} disabled={locked(payment.id)} onChange={(e) => change(payment.id, { notes: e.target.value })} placeholder="Opcional" /></div>
               </div>
+              <div className="payment-receipt-controls">
+                {activeReceiptForPayment(receipts, event.id, payment.id) ? (
+                  <><div className="payment-receipt-status"><ReceiptText size={16} /> Recibo emitido:
+                    <strong>{activeReceiptForPayment(receipts, event.id, payment.id)?.number}</strong>
+                    <small>Para corrigir este pagamento, cancele primeiro o recibo.</small>
+                  </div>
+                  <button className="btn btn-quiet" onClick={() => onPreviewReceipt(activeReceiptForPayment(receipts, event.id, payment.id)!.id)}>
+                    <FileText size={16} /> Visualizar recibo
+                  </button></>
+                ) : (
+                  <button className="btn btn-quiet" disabled={!isSaved(payment) || !payment.date || !payment.amount || payment.method === 'A confirmar'}
+                    onClick={() => startIssue(payment)}><ReceiptText size={16} /> Emitir recibo</button>
+                )}
+                {!locked(payment.id) && !isSaved(payment) && <small className="payment-receipt-hint">Salve e confirme o recebimento antes de emitir o recibo.</small>}
+              </div>
+              {issuingFor === payment.id && !locked(payment.id) && (
+                <div className="payment-issue-panel">
+                  <label htmlFor={'receipt-desc-' + payment.id}>Descrição do pagamento no recibo</label>
+                  <textarea id={'receipt-desc-' + payment.id} value={receiptDescription}
+                    maxLength={600} onChange={(e) => setReceiptDescription(e.target.value)} rows={3} />
+                  <div><button className="btn btn-quiet" onClick={() => setIssuingFor(null)}>Voltar</button>
+                    <button className="btn btn-primary" disabled={!receiptDescription.trim()} onClick={() => issue(payment)}>
+                      <Check size={16}/> Confirmar e gerar recibo
+                    </button></div>
+                </div>
+              )}
             </div>
           ))}
           {!payments.length && <div className="finance-empty">Nenhum pagamento recebido foi registrado.</div>}
