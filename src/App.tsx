@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import {
   CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardSignature, FileSignature,
   LayoutDashboard, Menu as MenuIcon, Plus, Search, Settings, Sparkles, Users,
@@ -16,6 +17,7 @@ import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal,
 import { brandMark } from './brand'
 import { PaymentsModal } from './components/PaymentsModal'
 import { ServiceEditor } from './components/ServiceEditor'
+import { hydrateFullContractHtml, prepareFullContractEditorHtml, sanitizeFullContractHtml, validateFullContractHtml } from './fullContract'
 import './styles.css'
 
 const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
@@ -247,7 +249,7 @@ function AdminApp() {
       quoteToken: undefined,
       quoteUrl: undefined,
       quoteSharedAt: undefined,
-      ...(templateChanged ? { customContractHtml: undefined, customContractUpdatedAt: undefined } : {})
+      ...(templateChanged ? { customContractHtml: undefined, customContractFullHtml: undefined, customContractUpdatedAt: undefined } : {})
     }
     setEvents((current) => current.map((item) => item.id === event.id ? updated : item))
     setEditingEventId(null)
@@ -1577,7 +1579,7 @@ function PaymentDocumentDetails({ event, template }: { event: BuffetEvent; templ
   const payments = initialReceivedPayments(event)
   const planned = (event.paymentSchedule || []).filter((item) => Boolean(item.date || item.checkNumber || item.amount > 0))
   return (
-    <div className="doc-payment-details">
+    <div className="doc-payment-details" data-contract-live="payments">
       <div className="doc-payment-summary">
         <div><span>Forma de pagamento combinada</span><strong>{event.paymentMethod || 'A definir'}</strong></div>
         <div><span>Financeiro do documento</span><strong>{template.financialEmail}</strong></div>
@@ -1733,18 +1735,28 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
   )
 }
 
-function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
+function ContractRichEditor({ template, documentHtml, resetHtml, onClose, onSave }: {
   template: ContractTemplate
-  initialHtml?: string
+  documentHtml: string
+  resetHtml: string
   onClose: () => void
   onSave: (html: string) => void | Promise<void>
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const logoInput = useRef<HTMLInputElement>(null)
+  const originalValues = useRef(new WeakMap<Element, string>())
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = sanitizeRichHtml(initialHtml || defaultContractEditorHtml(template))
-  }, [initialHtml, template.id])
+  const [error, setError] = useState('')
+  const load = (html: string) => {
+    if (!editorRef.current) return
+    editorRef.current.innerHTML = prepareFullContractEditorHtml(html)
+    originalValues.current = new WeakMap<Element, string>()
+    editorRef.current.querySelectorAll('[data-contract-bind]').forEach((el) =>
+      originalValues.current.set(el, el.textContent || ''))
+    editorRef.current.querySelectorAll('[data-contract-live], [data-contract-signature-slot], [data-contract-bind="total"], [data-contract-bind="received"], [data-contract-bind="balance"]').forEach((el) =>
+      el.setAttribute('contenteditable', 'false'))
+  }
+  useEffect(() => { load(documentHtml) }, [documentHtml, template.id])
 
   const command = (name: string, value?: string) => {
     editorRef.current?.focus()
@@ -1753,17 +1765,45 @@ function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
 
   const save = async () => {
     if (!editorRef.current) return
+    setError('')
+    // Valores digitados diretamente no documento deixam de ser sincronizados
+    // com o evento. Valores não alterados continuam sempre atualizados.
+    editorRef.current.querySelectorAll('[data-contract-bind]').forEach((node) => {
+      const original = originalValues.current.get(node)
+      if (original !== undefined && node.textContent !== original)
+        node.removeAttribute('data-contract-bind')
+    })
+    const html = sanitizeFullContractHtml(editorRef.current.innerHTML)
+    const validation = validateFullContractHtml(html)
+    if (validation) { setError(validation); return }
     setSaving(true)
-    try {
-      await onSave(sanitizeRichHtml(editorRef.current.innerHTML))
-    } finally {
-      setSaving(false)
-    }
+    try { await onSave(html) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o documento.') }
+    finally { setSaving(false) }
   }
 
   const restore = () => {
-    if (!window.confirm('Restaurar o texto deste contrato para o modelo original?')) return
-    if (editorRef.current) editorRef.current.innerHTML = sanitizeRichHtml(defaultContractEditorHtml(template))
+    if (!window.confirm('Restaurar todo o documento, inclusive cabeçalho, para o modelo original?')) return
+    load(resetHtml)
+    setError('')
+  }
+
+  const changeLogo = (file?: File) => {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_000_000) {
+      setError('Use uma imagem PNG, JPG ou WEBP de até 1 MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const image = editorRef.current?.querySelector<HTMLImageElement>('.doc-akela-identity img')
+      if (image && typeof reader.result === 'string') image.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  }
+  const resizeLogo = (width: number) => {
+    const image = editorRef.current?.querySelector<HTMLImageElement>('.doc-akela-identity img')
+    if (image) image.style.width = width + 'px'
   }
 
   const tools = [
@@ -1786,10 +1826,10 @@ function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
         <header className="contract-editor-header">
           <div>
             <button className="back-button" onClick={onClose}><ChevronLeft size={18} /> Voltar ao contrato</button>
-            <div><span className="eyebrow">EDITOR DE CONTRATO</span><h2>{template.name}</h2><p>Edite o conteúdo como em um processador de texto. A versão salva será usada neste evento.</p></div>
+            <div><span className="eyebrow">EDITOR DO DOCUMENTO COMPLETO</span><h2>{template.name}</h2><p>Clique diretamente em qualquer texto, inclusive cabeçalho, dados iniciais, títulos, seções, cláusulas e rodapé. Pagamentos e assinaturas permanecem automáticos.</p></div>
           </div>
           <div className="contract-editor-actions">
-            <button className="btn btn-quiet" onClick={restore}><FileText size={16} /> Restaurar modelo</button>
+            <button className="btn btn-quiet" onClick={restore}><FileText size={16} /> Restaurar documento original</button>
             <button className="btn btn-primary" onClick={save} disabled={saving}><Check size={16} /> {saving ? 'Salvando...' : 'Salvar contrato'}</button>
           </div>
         </header>
@@ -1806,10 +1846,22 @@ function ContractRichEditor({ template, initialHtml, onClose, onSave }: {
             ))}
           </div>
         </div>
+        <div className="full-editor-tools">
+          <input ref={logoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => changeLogo(e.target.files?.[0])} />
+          <button className="btn btn-quiet" onClick={() => logoInput.current?.click()}>Trocar imagem do cabeçalho</button>
+          <label>Logo <select defaultValue="150" onChange={(e) => resizeLogo(Number(e.target.value))}>
+            <option value="95">Pequena</option><option value="150">Média</option><option value="200">Grande</option><option value="250">Extra grande</option>
+          </select></label>
+          <button className="btn btn-quiet" onClick={() => { editorRef.current?.focus(); document.execCommand('insertHTML', false, defaultContractEditorHtml(template)) }}>
+            Inserir cláusulas originais
+          </button>
+          <span>Os pagamentos e as assinaturas são protegidos para manter seus dados corretos.</span>
+        </div>
+        {error && <p className="full-editor-error" role="alert">{error}</p>}
         <div className="contract-editor-canvas">
           <div
             ref={editorRef}
-            className="contract-editor-page"
+            className="contract-editor-page contract-document full-contract-edit"
             contentEditable
             suppressContentEditableWarning
             spellCheck
@@ -1874,6 +1926,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
     onUpdate({
       contractTemplateId: templateId,
       customContractHtml: undefined,
+      customContractFullHtml: undefined,
       customContractUpdatedAt: undefined,
       contractStatus: 'Rascunho',
       shareToken: undefined,
@@ -1891,10 +1944,10 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
     try { await revokeGeneratedLinks() }
     catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar o contrato.')
-      return
+      throw error
     }
     onUpdate({
-      customContractHtml: html,
+      customContractFullHtml: html,
       customContractUpdatedAt: new Date().toISOString(),
       contractStatus: 'Rascunho',
       shareToken: undefined,
@@ -1933,7 +1986,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
   }, [event.shareToken, event.contractStatus])
 
   const createSigningLink = async () => {
-    if (event.venueMode === 'offsite' && !event.customContractHtml) {
+    if (event.venueMode === 'offsite' && !event.customContractHtml && !event.customContractFullHtml) {
       notify('Evento a domicílio: edite as cláusulas que mencionam a sede antes de gerar o link.')
       return ''
     }
@@ -2020,7 +2073,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
                 {event.clientPhone && <option value={event.clientPhone}>Principal: {event.clientPhone}</option>}
                 <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
               </select></label>}
-            <button className="btn btn-quiet" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato</button>
+            <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato inteiro</button>
             <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
@@ -2034,7 +2087,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
           <select value={event.contractTemplateId || contractTemplate.id} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado'}>
             {compatibleTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
-          {event.customContractHtml && <span className="contract-custom-badge"><Pencil size={13} /> Personalizado</span>}
+          {(event.customContractHtml || event.customContractFullHtml) && <span className="contract-custom-badge"><Pencil size={13} /> Personalizado</span>}
         </div>
         {event.shareUrl && event.contractStatus !== 'Assinado' && (
           <div className="share-banner no-print">
@@ -2045,7 +2098,10 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
         <ContractDocument event={printEvent} menu={printMenu} services={printServices} settings={printSettings} total={printTotal} templateOverride={printTemplate} />
         {event.contractStatus === 'Assinado' && <div className="signed-ledger-box no-print"><strong>Extrato financeiro atual (separado do documento assinado)</strong><p>Total recebido até agora: {money(receivedTotal(event))} · Saldo: {money(Math.max(0, total - receivedTotal(event)))}</p><button className="btn btn-quiet" onClick={onPayments}>Lançar ou conferir pagamentos</button></div>}
       </div>
-      {editingContract && <ContractRichEditor template={contractTemplate} initialHtml={event.customContractHtml} onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
+      {editingContract && <ContractRichEditor template={contractTemplate}
+        documentHtml={document.querySelector('.contract-overlay .contract-shell .contract-document')?.outerHTML || ''}
+        resetHtml={renderToStaticMarkup(<ContractDocument event={{ ...event, customContractHtml: undefined, customContractFullHtml: undefined }} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />)}
+        onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
     </div>
   )
 }
@@ -2066,33 +2122,74 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
     ? new Date(event.signature.signedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     : '_____ de __________________ de 20_____'
 
+  const fullDocument = event.customContractFullHtml ? hydrateFullContractHtml(
+    event.customContractFullHtml,
+    {
+      headerPerson: event.eventType === 'Aniversário' ? (event.celebrantName || event.clientName) : event.clientName,
+      clientName: event.clientName,
+      age: event.celebrantAge || ' ',
+      date: dateBR(event.eventDate),
+      start: event.startTime, end: event.endTime,
+      theme: event.theme || ' ', guests: String(event.guests),
+      father: event.fatherName || ' ', mother: event.motherName || ' ',
+      siblings: event.siblings || ' ', phone: event.clientPhone || ' ',
+      phone2: event.clientPhoneSecondary || ' ', email: event.clientEmail || ' ',
+      number: 'CONTRATO ' + event.contractNumber,
+      subtitle, title, total: money(total),
+      received: money(receivedTotal(event)),
+      balance: money(Math.max(0, total - receivedTotal(event))),
+      signatureDate: 'São Paulo, ' + signatureDate
+    },
+    renderToStaticMarkup(<PaymentDocumentDetails event={event} template={template} />)
+  ) : null
+
+  if (fullDocument) return (
+    <article className="contract-document contract-document-custom">
+      <div data-full-contract-fragment="1" className="full-contract-fragment"
+        dangerouslySetInnerHTML={{ __html: fullDocument.before }} />
+      <section className="doc-signatures">
+        <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
+        <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>
+      </section>
+      {event.signature?.auditHash && (
+        <section className="audit-evidence">
+          <div><CheckCircle2 size={16} /><strong>Registro eletrônico de assinatura</strong></div>
+          <p>Assinado em {new Date(event.signature.signedAt).toLocaleString('pt-BR')} por {event.signature.signerName}.</p>
+          <span>SHA-256: {event.signature.auditHash}</span>
+        </section>
+      )}
+      <div data-full-contract-fragment="1" className="full-contract-fragment"
+        dangerouslySetInnerHTML={{ __html: fullDocument.after }} />
+    </article>
+  )
+
   return (
     <article className="contract-document">
       <header className="doc-akela-header">
         <div className="doc-akela-fields">
-          <div className="doc-akela-line"><div className="grow"><span>{event.eventType === 'Aniversário' ? 'Aniversariante:' : 'Contratante:'}</span><strong>{event.eventType === 'Aniversário' ? (event.celebrantName || event.clientName) : event.clientName}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>{event.eventType === 'Aniversário' ? 'Aniversariante:' : 'Contratante:'}</span><strong data-contract-bind="headerPerson">{event.eventType === 'Aniversário' ? (event.celebrantName || event.clientName) : event.clientName}</strong></div></div>
           <div className="doc-akela-line">
-            <div><span>Idade:</span><strong>{event.celebrantAge || ' '}</strong></div>
-            <div className="grow"><span>Data:</span><strong>{dateBR(event.eventDate)}</strong></div>
-            <div><span>Das:</span><strong>{event.startTime}</strong><span>às:</span><strong>{event.endTime}</strong></div>
+            <div><span>Idade:</span><strong data-contract-bind="age">{event.celebrantAge || ' '}</strong></div>
+            <div className="grow"><span>Data:</span><strong data-contract-bind="date">{dateBR(event.eventDate)}</strong></div>
+            <div><span>Das:</span><strong data-contract-bind="start">{event.startTime}</strong><span>às:</span><strong data-contract-bind="end">{event.endTime}</strong></div>
           </div>
-          <div className="doc-akela-line"><div className="grow"><span>Tema:</span><strong>{event.theme || ' '}</strong></div><div><span>Nº de convidados:</span><strong>{event.guests}</strong></div></div>
-          <div className="doc-akela-line"><div className="grow"><span>Pai:</span><strong>{event.fatherName || ' '}</strong></div><div className="grow"><span>Mãe:</span><strong>{event.motherName || ' '}</strong></div></div>
-          <div className="doc-akela-line"><div className="grow"><span>Irmãos:</span><strong>{event.siblings || ' '}</strong></div></div>
-          <div className="doc-akela-line"><div className="grow"><span>Telefone:</span><strong>{event.clientPhone || ' '}</strong></div></div>
-          <div className="doc-akela-line"><div className="grow"><span>Telefone adicional:</span><strong>{event.clientPhoneSecondary || ' '}</strong></div></div>
-          <div className="doc-akela-line"><div className="grow"><span>E-mail:</span><strong>{event.clientEmail || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Tema:</span><strong data-contract-bind="theme">{event.theme || ' '}</strong></div><div><span>Nº de convidados:</span><strong data-contract-bind="guests">{event.guests}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Pai:</span><strong data-contract-bind="father">{event.fatherName || ' '}</strong></div><div className="grow"><span>Mãe:</span><strong data-contract-bind="mother">{event.motherName || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Irmãos:</span><strong data-contract-bind="siblings">{event.siblings || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Telefone:</span><strong data-contract-bind="phone">{event.clientPhone || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>Telefone adicional:</span><strong data-contract-bind="phone2">{event.clientPhoneSecondary || ' '}</strong></div></div>
+          <div className="doc-akela-line"><div className="grow"><span>E-mail:</span><strong data-contract-bind="email">{event.clientEmail || ' '}</strong></div></div>
         </div>
         <div className="doc-akela-identity">
           <img src={brandMark} alt={'Logo original ' + settings.businessName} />
-          <span>CONTRATO {event.contractNumber}</span>
+          <span data-contract-bind="number">CONTRATO {event.contractNumber}</span>
         </div>
       </header>
-      <div className="doc-title"><span>{subtitle}</span><h1>{title}</h1><p>Modelo: {template.name} · documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')}.</p></div>
+      <div className="doc-title"><span data-contract-bind="subtitle">{subtitle}</span><h1 data-contract-bind="title">{title}</h1><p>Modelo: {template.name} · documento gerado em {new Date(event.createdAt).toLocaleDateString('pt-BR')}.</p></div>
 
       <section className="doc-party-grid">
         <div><span>CONTRATADA</span><strong>{settings.legalName}</strong><p>{settings.document}<br />{settings.address}<br />{settings.city}<br />{settings.financeEmail || settings.email}</p></div>
-        <div><span>CONTRATANTE</span><strong>{event.clientName}</strong><p>CPF/CNPJ: {event.clientDocument || 'Não informado'}{event.clientRg ? <><br />RG: {event.clientRg}</> : null}{event.clientAddress ? <><br />{event.clientAddress}</> : null}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}{event.clientPhoneSecondary ? <><br />Contato adicional: {event.clientPhoneSecondary}</> : null}</p></div>
+        <div><span>CONTRATANTE</span><strong data-contract-bind="clientName">{event.clientName}</strong><p>CPF/CNPJ: {event.clientDocument || 'Não informado'}{event.clientRg ? <><br />RG: {event.clientRg}</> : null}{event.clientAddress ? <><br />{event.clientAddress}</> : null}<br />{event.clientEmail || 'E-mail não informado'}<br />{event.clientPhone || 'Telefone não informado'}{event.clientPhoneSecondary ? <><br />Contato adicional: {event.clientPhoneSecondary}</> : null}</p></div>
       </section>
 
       <section className="doc-section">
@@ -2128,9 +2225,9 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <div className="doc-section-head"><span>{template.type === 'services' ? '04' : '03'}</span><h2>Condições comerciais</h2></div>
         <div className="doc-financial">
           <div><span>Valor por pessoa</span><strong>{template.type === 'services' ? money(menuPrice) : '—'}</strong></div>
-          <div><span>Valor total</span><strong>{money(total)}</strong></div>
-          <div><span>Total recebido</span><strong>{money(receivedTotal(event))}</strong></div>
-          <div><span>Saldo a receber</span><strong>{money(Math.max(0, total - receivedTotal(event)))}</strong></div>
+          <div><span>Valor total</span><strong data-contract-bind="total">{money(total)}</strong></div>
+          <div><span>Total recebido</span><strong data-contract-bind="received">{money(receivedTotal(event))}</strong></div>
+          <div><span>Saldo a receber</span><strong data-contract-bind="balance">{money(Math.max(0, total - receivedTotal(event)))}</strong></div>
         </div>
         <p className="doc-clause"><strong>Pagamento.</strong> {settings.paymentTerms}</p>
         <p className="doc-clause"><strong>Cancelamento.</strong> {template.cancellationSummary}</p>
@@ -2149,7 +2246,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         {(!menu || menu.sourceLabel !== template.sourceLabel) && <TemplateOperationalDetails template={template} />}
       </section>
 
-      <div className="contract-location-date">São Paulo, {signatureDate}</div>
+      <div className="contract-location-date" data-contract-bind="signatureDate">São Paulo, {signatureDate}</div>
       <section className="doc-signatures">
         <div className="signature-box"><span>CONTRATADA</span><div className="signature-line" /><strong>{settings.legalName}</strong><small>{settings.document}</small></div>
         <div className="signature-box"><span>CONTRATANTE</span>{event.signature?.dataUrl ? <img src={event.signature.dataUrl} alt="Assinatura do contratante" /> : <div className="signature-line" />}<strong>{event.signature?.signerName || event.clientName}</strong><small>{event.signature ? 'Assinado eletronicamente em ' + new Date(event.signature.signedAt).toLocaleString('pt-BR') : event.clientEmail || event.clientDocument}</small></div>

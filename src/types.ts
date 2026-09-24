@@ -155,6 +155,7 @@ export interface BuffetEvent {
   menuSelections?: Record<string, string | string[]>
   cakeDescription?: string
   contractTemplateId?: string
+  customContractFullHtml?: string
   customContractHtml?: string
   customContractUpdatedAt?: string
   paymentMethod?: string
