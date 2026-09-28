@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardSignature, FileSignature,
@@ -6,12 +6,13 @@ import {
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
   UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
-  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw
 } from 'lucide-react'
-import { defaultEvents, defaultMenus, defaultServices, defaultSettings } from './data'
 import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
-import { useLocalStorage, uid } from './storage'
+import { uid } from './storage'
+import { WorkspaceGate } from './components/WorkspaceGate'
+import { downloadWorkspace, type WorkspaceData } from './workspace'
 import type { BuffetEvent, BusinessSettings, ContractTemplate, EventServiceItem, MenuItem, ReceivedPayment, Section, ServiceItem } from './types'
 import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal, initialReceivedPayments, money, phoneDigits, receivedTotal, shortDate, statusClass } from './utils'
 import { brandMark } from './brand'
@@ -101,12 +102,12 @@ function defaultContractEditorHtml(template: ContractTemplate) {
   return '<h2>' + template.name + '</h2><p><em>Edite abaixo o conteúdo contratual antes do envio ao cliente.</em></p>' + clauses + operational
 }
 
-function AdminApp() {
+function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWorkspace: WorkspaceData; initialRevision: number; onLogout: () => void }) {
   const [section, setSection] = useState<Section>('dashboard')
-  const [events, setEvents] = useLocalStorage<BuffetEvent[]>('maison-events', defaultEvents)
-  const [menus, setMenus] = useLocalStorage<MenuItem[]>('maison-menus', defaultMenus)
-  const [services, setServices] = useLocalStorage<ServiceItem[]>('maison-services', defaultServices)
-  const [settings, setSettings] = useLocalStorage<BusinessSettings>('maison-settings', defaultSettings)
+  const [events, setEvents] = useState<BuffetEvent[]>(initialWorkspace.events)
+  const [menus, setMenus] = useState<MenuItem[]>(initialWorkspace.menus)
+  const [services, setServices] = useState<ServiceItem[]>(initialWorkspace.services)
+  const [settings, setSettings] = useState<BusinessSettings>(initialWorkspace.settings)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
@@ -114,7 +115,7 @@ function AdminApp() {
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
   const [activePaymentsId, setActivePaymentsId] = useState<string | null>(null)
   const [activeReceiptId, setActiveReceiptId] = useState<string | null>(null)
-  const [receipts, setReceipts] = useLocalStorage<PaymentReceipt[]>('akela-receipts', [])
+  const [receipts, setReceipts] = useState<PaymentReceipt[]>(initialWorkspace.receipts)
   const [toast, setToast] = useState('')
 
   const activeContract = events.find((item) => item.id === activeContractId)
@@ -122,58 +123,57 @@ function AdminApp() {
   const activePayments = events.find((item) => item.id === activePaymentsId)
   const activeReceipt = receipts.find((item) => item.id === activeReceiptId)
   const editingEvent = events.find((item) => item.id === editingEventId)
+  const revisionRef = useRef(initialRevision)
+  const latestRef = useRef<WorkspaceData>(initialWorkspace)
+  const dirtyRef = useRef(false)
+  const savingRef = useRef(false)
+  const conflictRef = useRef(false)
+  const firstStateRef = useRef(true)
+  const [syncState, setSyncState] = useState<'saved' | 'pending' | 'saving' | 'error' | 'conflict'>('saved')
+  const [syncMessage, setSyncMessage] = useState('')
 
-  useEffect(() => {
-    const migrationKey = 'akela-materials-2027-v2-complete'
-    if (window.localStorage.getItem(migrationKey)) return
-
-    const legacyMenuIds = new Set(['menu-classico', 'menu-celebracao', 'menu-signature', 'menu-coquetel'])
-    setMenus((current) => {
-      const custom = current.filter((menu) => !legacyMenuIds.has(menu.id) && !defaultMenus.some((official) => official.id === menu.id))
-      const official = defaultMenus.map((source) => {
-        const previous = current.find((menu) => menu.id === source.id)
-        return {
-          ...source,
-          pricePerPerson: previous?.pricePerPerson ?? source.pricePerPerson,
-          active: previous?.active ?? source.active
-        }
+  const persistWorkspace = useCallback(async () => {
+    if (savingRef.current || !dirtyRef.current || conflictRef.current) return
+    savingRef.current = true
+    let succeeded = false
+    dirtyRef.current = false
+    setSyncState('saving')
+    try {
+      const response = await fetch('/api/workspace', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: latestRef.current, revision: revisionRef.current })
       })
-      return [...official, ...custom]
-    })
-    setEvents((current) => current.map((event) => {
-      if (event.id === 'event-demo-1') return { ...defaultEvents[0] }
-      const officialMenu = defaultMenus.find((menu) => menu.id === event.menuId)
-      const paymentSchedule = event.paymentSchedule?.length
-        ? event.paymentSchedule
-        : Array.from({ length: 5 }, () => ({ date: '', checkNumber: '', amount: 0 }))
-      if (officialMenu) {
-        return {
-          ...event,
-          contractTemplateId: officialMenu.contractTemplateId,
-          menuPricePerPerson: event.menuPricePerPerson ?? officialMenu.pricePerPerson,
-          cakeDescription: event.cakeDescription || '',
-          paymentMethod: event.paymentMethod || '',
-          paymentSchedule
-        }
+      const result = await response.json()
+      if (response.status === 409) {
+        conflictRef.current = true
+        setSyncState('conflict')
+        setSyncMessage(result.error || 'Outra sessão atualizou os dados.')
+        return
       }
-      if (event.contractTemplateId === 'akela-services-2027') {
-        return { ...event, contractTemplateId: 'akela-infinity-2027', paymentSchedule }
-      }
-      return { ...event, paymentSchedule }
-    }))
-    setSettings((current) => current.businessName === 'Maison Buffet' ? defaultSettings : current)
-    window.localStorage.setItem(migrationKey, '1')
-  }, [setMenus, setEvents, setSettings])
+      if (!response.ok) throw new Error(result.error || 'Erro ao sincronizar com o banco.')
+      revisionRef.current = result.revision
+      succeeded = true
+      setSyncState(dirtyRef.current ? 'pending' : 'saved')
+      setSyncMessage('')
+    } catch (error) {
+      dirtyRef.current = true
+      setSyncState('error')
+      setSyncMessage(error instanceof Error ? error.message : 'Conexão indisponível.')
+    } finally {
+      savingRef.current = false
+      if (succeeded && dirtyRef.current && !conflictRef.current) window.setTimeout(() => void persistWorkspace(), 650)
+    }
+  }, [])
 
   useEffect(() => {
-    const key = 'akela-services-presets-2027-v1'
-    if (window.localStorage.getItem(key)) return
-    setServices((current) => [
-      ...current,
-      ...defaultServices.filter((service) => !current.some((item) => item.id === service.id))
-    ])
-    window.localStorage.setItem(key, '1')
-  }, [setServices])
+    latestRef.current = { events, menus, services, settings, receipts }
+    if (firstStateRef.current) { firstStateRef.current = false; return }
+    dirtyRef.current = true
+    setSyncState('pending')
+    const timer = window.setTimeout(() => void persistWorkspace(), 650)
+    return () => window.clearTimeout(timer)
+  }, [events, menus, services, settings, receipts, persistWorkspace])
+
 
   useEffect(() => {
     const syncPendingContracts = async () => {
@@ -340,7 +340,14 @@ function AdminApp() {
     <div className="app-shell">
       <Sidebar section={section} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} settings={settings} />
       <main className="main">
-        <Topbar section={section} onNewEvent={() => setWizardOpen(true)} />
+        <Topbar section={section} onNewEvent={() => setWizardOpen(true)} onLogout={() => { if (syncState !== 'saved') { notify('Aguarde a sincronização com o Neon antes de sair.'); return }; onLogout() }} syncState={syncState} />
+        {syncState === 'error' || syncState === 'conflict' ? <div className="workspace-sync-error" role="alert">
+          <CloudOff size={18}/><div><strong>{syncState === 'conflict' ? 'Conflito entre dispositivos' : 'Os dados ainda não foram salvos no Neon'}</strong>
+            <span>{syncMessage} Exporte o backup antes de recarregar, para não perder as alterações desta aba.</span></div>
+          <button className="btn btn-quiet" onClick={() => downloadWorkspace(latestRef.current)}>Exportar backup</button>
+          {syncState === 'error' ? <button className="btn btn-primary" onClick={() => void persistWorkspace()}><RefreshCw size={15}/> Tentar salvar</button>
+            : <button className="btn btn-primary" onClick={() => window.location.reload()}>Carregar versão do banco</button>}
+        </div> : null}
         <div className="page">
           {section === 'dashboard' && (
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
@@ -463,7 +470,10 @@ function MobileNav({ section, onNavigate, onNewEvent }: {
   )
 }
 
-function Topbar({ section, onNewEvent }: { section: Section; onNewEvent: () => void }) {
+function Topbar({ section, onNewEvent, onLogout, syncState }: {
+  section: Section; onNewEvent: () => void; onLogout: () => void
+  syncState: 'saved' | 'pending' | 'saving' | 'error' | 'conflict'
+}) {
   const current = navItems.find((item) => item.id === section)
   return (
     <header className="topbar">
@@ -473,7 +483,12 @@ function Topbar({ section, onNewEvent }: { section: Section; onNewEvent: () => v
       </div>
       <div className="topbar-actions">
         <div className="global-search"><Search size={17} /><input placeholder="Buscar evento, cliente..." /></div>
+        <span className={'workspace-sync-chip ' + (syncState === 'saved' ? 'ok' : syncState === 'error' || syncState === 'conflict' ? 'bad' : 'busy')}>
+          {syncState === 'error' || syncState === 'conflict' ? <CloudOff size={14}/> : <Cloud size={14}/>}
+          <span>{syncState === 'saved' ? 'Neon sincronizado' : syncState === 'saving' ? 'Salvando...' : syncState === 'pending' ? 'Aguardando...' : 'Não sincronizado'}</span>
+        </span>
         <button className="btn btn-primary desktop-only" onClick={onNewEvent}><Plus size={17} /> Novo evento</button>
+        <button className="workspace-logout" title="Sair do painel" onClick={onLogout} aria-label="Sair do painel"><LogOut size={18}/></button>
       </div>
     </header>
   )
@@ -2633,7 +2648,7 @@ function App() {
   if (verificationMatch) return <VerificationPage code={verificationMatch[1]} />
   if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
   if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
-  return <AdminApp />
+  return <WorkspaceGate>{(data, revision, logout) => <AdminApp initialWorkspace={data} initialRevision={revision} onLogout={logout} />}</WorkspaceGate>
 }
 
 function Field({ label, value, onChange, type = 'text', placeholder = '', prefix = '' }: {

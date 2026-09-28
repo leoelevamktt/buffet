@@ -1,5 +1,6 @@
 import { del, get, put, head } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
+import { requireAdmin } from './_session.js'
 import { canonicalHash, signedDocumentPayload, getTrustedIp, browserInfo, isEmail, EVIDENCE_VERSION } from './_audit.js'
 
 const pathnameFor = (token) => 'contracts/' + token + '.json'
@@ -32,6 +33,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (!requireAdmin(req, res)) return
       const token = String(req.query.token || '')
       if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
       const contract = await readContract(token)
@@ -43,6 +45,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      if (!requireAdmin(req, res)) return
       const body = req.body || {}
       const { event, menu, services, settings, total, contractTemplate } = body
 

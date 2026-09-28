@@ -1,5 +1,6 @@
 import { del, get, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
+import { requireAdmin } from './_session.js'
 
 const pathnameFor = (token) => 'quotes/' + token + '.json'
 
@@ -27,6 +28,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (!requireAdmin(req, res)) return
       const token = String(req.query.token || '')
       if (!token || token.length < 20) return res.status(400).json({ error: 'Link de orçamento inválido.' })
       await del(pathnameFor(token))
@@ -34,6 +36,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      if (!requireAdmin(req, res)) return
       const { event, menu, services, settings, total, contractTemplate } = req.body || {}
       if (!event?.id || !event?.clientName || !settings?.businessName) {
         return res.status(400).json({ error: 'Dados obrigatórios do orçamento não foram informados.' })
