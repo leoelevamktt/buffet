@@ -1,57 +1,61 @@
-# Buffet Akela — integração com Neon
+# Buffet Akela — Neon PostgreSQL e segurança de acesso
 
-## Estado da implantação
+## Infraestrutura
+- Banco `neondb` configurado via `DATABASE_URL`, exclusivamente em rotas do servidor.
+- `ADMIN_SESSION_SECRET` protege os tokens das sessões de administradores e operadores.
+- `ADMIN_PASSWORD` é usado **somente para criar o usuário admin inicial**; a autenticação posterior
+  verifica o hash da senha no Neon, não a variável em texto puro.
+- Tabelas: `buffet_workspace`, `buffet_users`, `buffet_sessions` e `buffet_login_attempts`.
+- A criação do esquema e do admin inicial é idempotente: `node scripts/neon-setup.mjs`.
+- O esquema e o admin inicial já foram criados e validados no Neon.
 
-O banco `neondb` está acessível e contém o esquema criado por `scripts/neon-setup.mjs`.
-A migração do painel está preparada na branch `feature/neon-postgres-workspace`, separada
-da versão pública atual até a autenticação de produção estar inteiramente configurada.
+## Usuário administrativo inicial
+- Nome de usuário: `admin`.
+- Senha: a senha administrativa anteriormente gerada, guardada **apenas** na máquina
+  autorizada em `%LOCALAPPDATA%\BuffetAkela\admin-login.txt` e em `.env.local`.
+- A senha fica armazenada no Neon somente como derivação scrypt com sal aleatório.
+- Não envie credenciais, conexão PostgreSQL ou segredos para repositórios ou chats.
 
-## Variáveis protegidas de produção
+## Acesso e permissões
+- Login individual com usuário (ou e-mail) e senha. Sessão opaca em cookie HTTP-only,
+  SameSite=Strict, Secure em produção; token original não é armazenado no banco.
+- Sessões persistidas no Neon e limitadas a 12 horas. Revogadas ao sair, alterar senha,
+  alterar perfil ou desativar a conta.
+- Perfil `admin`: painel completo e área Usuários com criação, edição, redefinição de senha,
+  ativação e desativação. Não permite que o último administrador seja desativado.
+- Perfil `operador`: eventos, cardápios, contratos, recibos e demais funções operacionais.
+  A API impede acesso e alterações à administração de usuários.
+- `Minha conta`: alteração da própria senha após conferir a senha atual.
+- Limitação de tentativas de login por IP. Requisições de alteração exigem a mesma origem.
+- Todas as rotas administrativas de escrita em contratos e orçamentos exigem sessão.
 
-No projeto Vercel **buffet** (Production), configurar:
+## Primeiro acesso e importação de dados existentes
+1. Acesse a produção usando o navegador que já contém os cadastros do Buffet.
+2. Entre com o usuário `admin` e a senha do arquivo local informado acima.
+3. Como o Neon ainda não contém os cadastros históricos do painel, escolha
+   **Importar os dados deste navegador**.
+4. Revise os eventos, cardápios, pagamentos e recibos importados. A importação não
+   apaga o armazenamento anterior do navegador.
+5. Confira o status **Neon sincronizado** após as primeiras alterações.
+6. Se necessário, crie os acessos dos colaboradores em **Usuários**.
 
-- `DATABASE_URL` — já cadastrada na Vercel. Nunca inserir no frontend.
-- `ADMIN_PASSWORD` — valor presente em `.env.local` na máquina autorizada.
-- `ADMIN_SESSION_SECRET` — valor presente em `.env.local` na máquina autorizada.
+A importação é uma decisão expressa do administrador: nunca começamos com dados
+vazios automaticamente. Se um segundo dispositivo acessar antes da importação no
+navegador antigo, não selecione “começar com banco vazio”.
 
-A senha do administrador também está documentada SOMENTE na máquina autorizada:
-`%LOCALAPPDATA%\BuffetAkela\admin-login.txt`.
+## Dados e sincronização
+- `buffet_workspace` usa JSONB e `revision` para impedir sobrescrita silenciosa
+  entre duas sessões. Em caso de conflito, exporte backup e recarregue o Neon.
+- Admins e operadores trabalham no mesmo espaço de dados, com acesso protegido.
+- Vercel Blob privado continua armazenando snapshots assinados, recibos técnicos,
+  evidências de auditoria e documentos compartilháveis.
+- A aplicação não disponibiliza a string de conexão PostgreSQL no frontend.
 
-**Não copie senhas, tokens ou URLs PostgreSQL para GitHub, mensagens, logs ou arquivos públicos.**
-Quando as três variáveis estiverem definidas em Production, publicar a branch na `main`
-e executar um deploy de produção. Sem isso, a autenticação retorna 503: mantenha a
-versão anterior publicada até terminar o processo.
-
-## Primeiro acesso / migração
-
-1. Entre no painel pelo mesmo navegador que guarda os cadastros atuais.
-2. Use a senha administrativa gerada na máquina autorizada.
-3. O painel detecta que o Neon ainda não tem os dados do Buffet.
-4. Escolha **Importar os dados deste navegador** para manter eventos, cardápios,
-   serviços, configurações e recibos. Alternativamente, iniciar um banco vazio.
-5. Confirme que aparece **Neon sincronizado** depois de alterar um cadastro.
-6. Abra em outra sessão/dispositivo e verifique que os dados surgem sem importar de novo.
-
-O sistema usa uma tabela `buffet_workspace` (JSONB) com `revision`: modificações
-concorrentes em diferentes dispositivos retornam conflito em vez de sobrescrever
-dados silenciosamente. Um aviso permite exportar backup local antes de recarregar.
-
-## Armazenamento e privacidade
-
-- Neon: painel administrativo, eventos, cardápios, serviços, configurações e recibos.
-- Vercel Blob privado: links, snapshots de contratos assinados, orçamentos,
-  comprovantes técnicos de auditoria e assinaturas existentes.
-- Rotas POST e DELETE de contrato e orçamento exigem sessão administrativa;
-  a consulta pública por token e a assinatura do destinatário continuam disponíveis.
-- O login usa cookie HTTP-only, SameSite=Strict, HMAC e limitação de tentativas por IP.
-- Nenhuma chave de banco é entregue ao navegador.
-
-## Manutenção
-
-- `node scripts/neon-setup.mjs`: cria o esquema se necessário, sem apagar dados.
-- `node --test scripts/neon-integration.test.mjs`: testa autenticação e acesso
-  real com transação revertida, sem inicializar ou sobrescrever o painel.
-- `npm run build`: valida TypeScript e gera o frontend.
-- Ao rotacionar a senha do Neon, atualize `DATABASE_URL` tanto na Vercel quanto
-  na máquina. A URL original fornecida em um chat deve ser rotacionada depois da
-  configuração definitiva, porque esteve exposta na conversa.
+## Manutenção e testes
+- `node scripts/neon-setup.mjs` — aplica o esquema de forma não destrutiva.
+- `node --test scripts/neon-integration.test.mjs` — testa login, roles, sessões,
+  criação e desativação de usuários e controle de revisões usando Neon real.
+  O teste elimina a conta temporária ao finalizar.
+- `npm run build` — valida a aplicação.
+- Após conclusão, rotacione a senha PostgreSQL anteriormente compartilhada no chat
+  e atualize `DATABASE_URL` da Vercel e do ambiente local.

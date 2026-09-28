@@ -13,7 +13,7 @@ const validate = (data) => {
 }
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   if (!['GET', 'POST', 'PUT'].includes(req.method)) return res.status(405).json({ error: 'Método não permitido.' })
   try {
     const sql = database()

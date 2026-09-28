@@ -3,13 +3,16 @@ import type { ReactNode, FormEvent } from 'react'
 import { ArrowRight, Cloud, Database, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
 import { brandMark } from '../brand'
 import { browserSnapshot, initialWorkspace, type WorkspaceData } from '../workspace'
+import type { AccountUser } from '../auth'
 
-type Props = { children: (data: WorkspaceData, revision: number, logout: () => void) => ReactNode }
+type Props = { children: (data: WorkspaceData, revision: number, user: AccountUser, logout: () => void) => ReactNode }
 type Loaded = { data: WorkspaceData; revision: number }
 export function WorkspaceGate({ children }: Props) {
   const [phase, setPhase] = useState<'loading' | 'login' | 'bootstrap' | 'ready' | 'failed'>('loading')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('admin')
+  const [user, setUser] = useState<AccountUser | null>(null)
   const [visible, setVisible] = useState(false)
   const [error, setError] = useState('')
   const [working, setWorking] = useState(false)
@@ -21,7 +24,8 @@ export function WorkspaceGate({ children }: Props) {
     const status = await fetch('/api/session', { cache: 'no-store' })
     if (!status.ok) throw new Error('Autenticação do servidor indisponível. Verifique as configurações do painel.')
     const session = await status.json()
-    if (!session.authenticated) { setPhase('login'); return }
+    if (!session.authenticated || !session.user) { setUser(null); setPhase('login'); return }
+    setUser(session.user)
     const result = await fetch('/api/workspace', { cache: 'no-store' })
     if (result.status === 401) { setPhase('login'); return }
     const body = await result.json()
@@ -39,7 +43,7 @@ export function WorkspaceGate({ children }: Props) {
     try {
       const result = await fetch('/api/session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ username, password })
       })
       const body = await result.json()
       if (!result.ok) throw new Error(body.error || 'Falha no acesso.')
@@ -65,10 +69,10 @@ export function WorkspaceGate({ children }: Props) {
   }
   const logout = () => {
     void fetch('/api/session', { method: 'DELETE' }).finally(() => {
-      setLoaded(null); setPhase('login'); setPassword('')
+      setLoaded(null); setUser(null); setPhase('login'); setPassword('')
     })
   }
-  if (phase === 'ready' && loaded) return <>{children(loaded.data, loaded.revision, logout)}</>
+  if (phase === 'ready' && loaded && user) return <>{children(loaded.data, loaded.revision, user, logout)}</>
   return (
     <main className="workspace-access">
       <section className="workspace-access-card">
@@ -77,9 +81,11 @@ export function WorkspaceGate({ children }: Props) {
         {phase === 'loading' && <><h1>Conectando ao banco...</h1><p>Verificando o acesso à plataforma.</p></>}
         {phase === 'login' && <>
           <h1>Bem-vindo ao Buffet Akela</h1>
-          <p>Entre com a senha administrativa para acessar eventos, recibos e contratos armazenados no Neon.</p>
+          <p>Faça login com seu usuário individual para acessar os eventos, recibos e contratos armazenados no Neon.</p>
           <form className="workspace-access-form" onSubmit={login}>
-            <label htmlFor="admin-password">Senha administrativa</label>
+            <label htmlFor="admin-username">Usuário ou e-mail</label>
+            <div className="workspace-password"><ShieldCheck size={18}/><input id="admin-username" autoComplete="username" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Seu usuário" /></div>
+            <label htmlFor="admin-password">Senha</label>
             <div className="workspace-password">
               <Lock size={18}/><input id="admin-password" type={visible ? 'text':'password'}
                 autoComplete="current-password" autoFocus required value={password}
@@ -87,7 +93,7 @@ export function WorkspaceGate({ children }: Props) {
               <button type="button" onClick={()=>setVisible(!visible)}
                 aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button>
             </div>
-            <button className="btn btn-primary" disabled={working || !password} type="submit">
+            <button className="btn btn-primary" disabled={working || !password || !username} type="submit">
               {working ? 'Validando...' : 'Entrar no painel'}<ArrowRight size={17}/>
             </button>
           </form>

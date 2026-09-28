@@ -12,6 +12,9 @@ import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
 import { uid } from './storage'
 import { WorkspaceGate } from './components/WorkspaceGate'
+import { UsersView } from './components/UsersView'
+import { ProfileView } from './components/ProfileView'
+import type { AccountUser } from './auth'
 import { downloadWorkspace, type WorkspaceData } from './workspace'
 import type { BuffetEvent, BusinessSettings, ContractTemplate, EventServiceItem, MenuItem, ReceivedPayment, Section, ServiceItem } from './types'
 import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal, initialReceivedPayments, money, phoneDigits, receivedTotal, shortDate, statusClass } from './utils'
@@ -32,7 +35,9 @@ const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'contracts', label: 'Contratos', icon: FileSignature },
   { id: 'receipts', label: 'Recibos', icon: FileText },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
-  { id: 'settings', label: 'Configurações', icon: Settings }
+  { id: 'settings', label: 'Configurações', icon: Settings },
+  { id: 'users', label: 'Usuários', icon: Users },
+  { id: 'profile', label: 'Minha conta', icon: UserRound }
 ]
 
 const eventTypes = ['Casamento', 'Aniversário', 'Corporativo', 'Confraternização', 'Formatura', 'Outro']
@@ -102,7 +107,9 @@ function defaultContractEditorHtml(template: ContractTemplate) {
   return '<h2>' + template.name + '</h2><p><em>Edite abaixo o conteúdo contratual antes do envio ao cliente.</em></p>' + clauses + operational
 }
 
-function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWorkspace: WorkspaceData; initialRevision: number; onLogout: () => void }) {
+function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: {
+  initialWorkspace: WorkspaceData; initialRevision: number; currentUser: AccountUser; onLogout: () => void
+}) {
   const [section, setSection] = useState<Section>('dashboard')
   const [events, setEvents] = useState<BuffetEvent[]>(initialWorkspace.events)
   const [menus, setMenus] = useState<MenuItem[]>(initialWorkspace.menus)
@@ -128,7 +135,7 @@ function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWork
   const dirtyRef = useRef(false)
   const savingRef = useRef(false)
   const conflictRef = useRef(false)
-  const firstStateRef = useRef(true)
+  const previousWorkspaceRef = useRef<WorkspaceData>(initialWorkspace)
   const [syncState, setSyncState] = useState<'saved' | 'pending' | 'saving' | 'error' | 'conflict'>('saved')
   const [syncMessage, setSyncMessage] = useState('')
 
@@ -166,8 +173,11 @@ function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWork
   }, [])
 
   useEffect(() => {
+    const previous = previousWorkspaceRef.current
+    if (previous.events === events && previous.menus === menus && previous.services === services &&
+        previous.settings === settings && previous.receipts === receipts) return
     latestRef.current = { events, menus, services, settings, receipts }
-    if (firstStateRef.current) { firstStateRef.current = false; return }
+    previousWorkspaceRef.current = latestRef.current
     dirtyRef.current = true
     setSyncState('pending')
     const timer = window.setTimeout(() => void persistWorkspace(), 650)
@@ -338,9 +348,9 @@ function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWork
 
   return (
     <div className="app-shell">
-      <Sidebar section={section} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} settings={settings} />
+      <Sidebar section={section} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} settings={settings} currentUser={currentUser} />
       <main className="main">
-        <Topbar section={section} onNewEvent={() => setWizardOpen(true)} onLogout={() => { if (syncState !== 'saved') { notify('Aguarde a sincronização com o Neon antes de sair.'); return }; onLogout() }} syncState={syncState} />
+        <Topbar section={section} currentUser={currentUser} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} onLogout={() => { if (syncState !== 'saved') { notify('Aguarde a sincronização com o Neon antes de sair.'); return }; onLogout() }} syncState={syncState} />
         {syncState === 'error' || syncState === 'conflict' ? <div className="workspace-sync-error" role="alert">
           <CloudOff size={18}/><div><strong>{syncState === 'conflict' ? 'Conflito entre dispositivos' : 'Os dados ainda não foram salvos no Neon'}</strong>
             <span>{syncMessage} Exporte o backup antes de recarregar, para não perder as alterações desta aba.</span></div>
@@ -366,6 +376,8 @@ function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWork
             onGoEvents={() => setSection('events')} />}
           {section === 'agenda' && <AgendaView events={events} />}
           {section === 'settings' && <SettingsView settings={settings} setSettings={setSettings} notify={notify} />}
+          {section === 'users' && currentUser.role === 'admin' && <UsersView current={currentUser} notify={notify} />}
+          {section === 'profile' && <ProfileView user={currentUser} onPasswordChanged={onLogout} />}
         </div>
       </main>
 
@@ -423,11 +435,12 @@ function AdminApp({ initialWorkspace, initialRevision, onLogout }: { initialWork
   )
 }
 
-function Sidebar({ section, onNavigate, onNewEvent, settings }: {
+function Sidebar({ section, onNavigate, onNewEvent, settings, currentUser }: {
   section: Section
   onNavigate: (section: Section) => void
   onNewEvent: () => void
   settings: BusinessSettings
+  currentUser: AccountUser
 }) {
   return (
     <aside className="sidebar">
@@ -438,7 +451,7 @@ function Sidebar({ section, onNavigate, onNewEvent, settings }: {
       <button className="new-event-button" onClick={onNewEvent}><Plus size={18} /> Novo evento</button>
       <nav className="side-nav">
         <span className="nav-label">ESPAÇO DE TRABALHO</span>
-        {navItems.map(({ id, label, icon: Icon }) => (
+        {navItems.filter((item) => item.id !== 'users' || currentUser.role === 'admin').map(({ id, label, icon: Icon }) => (
           <button key={id} className={section === id ? 'nav-item active' : 'nav-item'} onClick={() => onNavigate(id)}>
             <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
           </button>
@@ -446,7 +459,7 @@ function Sidebar({ section, onNavigate, onNewEvent, settings }: {
       </nav>
       <div className="sidebar-foot">
         <div className="avatar">MB</div>
-        <div><strong>Administração</strong><span>Dados salvos localmente</span></div>
+        <div><strong>{currentUser.name}</strong><span>{currentUser.role === 'admin' ? 'Administrador' : 'Operador'} · Neon</span></div>
       </div>
     </aside>
   )
@@ -470,8 +483,9 @@ function MobileNav({ section, onNavigate, onNewEvent }: {
   )
 }
 
-function Topbar({ section, onNewEvent, onLogout, syncState }: {
+function Topbar({ section, onNewEvent, onLogout, onNavigate, currentUser, syncState }: {
   section: Section; onNewEvent: () => void; onLogout: () => void
+  onNavigate: (section: Section) => void; currentUser: AccountUser
   syncState: 'saved' | 'pending' | 'saving' | 'error' | 'conflict'
 }) {
   const current = navItems.find((item) => item.id === section)
@@ -488,6 +502,8 @@ function Topbar({ section, onNewEvent, onLogout, syncState }: {
           <span>{syncState === 'saved' ? 'Neon sincronizado' : syncState === 'saving' ? 'Salvando...' : syncState === 'pending' ? 'Aguardando...' : 'Não sincronizado'}</span>
         </span>
         <button className="btn btn-primary desktop-only" onClick={onNewEvent}><Plus size={17} /> Novo evento</button>
+        {currentUser.role === 'admin' && <button className="workspace-user-control" title="Gerenciar usuários" onClick={() => onNavigate('users')}><Users size={17}/><span>Usuários</span></button>}
+        <button className="workspace-user-control" title="Minha conta" onClick={() => onNavigate('profile')}><UserRound size={17}/><span>{currentUser.name}</span></button>
         <button className="workspace-logout" title="Sair do painel" onClick={onLogout} aria-label="Sair do painel"><LogOut size={18}/></button>
       </div>
     </header>
@@ -2648,7 +2664,7 @@ function App() {
   if (verificationMatch) return <VerificationPage code={verificationMatch[1]} />
   if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
   if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
-  return <WorkspaceGate>{(data, revision, logout) => <AdminApp initialWorkspace={data} initialRevision={revision} onLogout={logout} />}</WorkspaceGate>
+  return <WorkspaceGate>{(data, revision, user, logout) => <AdminApp initialWorkspace={data} initialRevision={revision} currentUser={user} onLogout={logout} />}</WorkspaceGate>
 }
 
 function Field({ label, value, onChange, type = 'text', placeholder = '', prefix = '' }: {
