@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
   UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
-  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw, Eye
 } from 'lucide-react'
 import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
@@ -107,6 +107,15 @@ function defaultContractEditorHtml(template: ContractTemplate) {
   return '<h2>' + template.name + '</h2><p><em>Edite abaixo o conteúdo contratual antes do envio ao cliente.</em></p>' + clauses + operational
 }
 
+function extraGuestPricing(event: BuffetEvent, menu: MenuItem | undefined, template: ContractTemplate) {
+  const advance = Math.max(0, Number(event.extraGuestAdvancePrice ??
+    menu?.extraGuestAdvancePrice ?? event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0))
+  const eventDay = Math.max(0, Number(event.extraGuestEventDayPrice ??
+    menu?.extraGuestEventDayPrice ?? template.extraGuestPrice ?? advance))
+  const deadlineDays = Math.max(1, Math.floor(Number(event.extraGuestAdvanceDeadlineDays ?? 7)))
+  return { advance, eventDay, deadlineDays }
+}
+
 function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: {
   initialWorkspace: WorkspaceData; initialRevision: number; currentUser: AccountUser; onLogout: () => void
 }) {
@@ -117,6 +126,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   const [settings, setSettings] = useState<BusinessSettings>(initialWorkspace.settings)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [activeEventViewId, setActiveEventViewId] = useState<string | null>(null)
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
   const [activeContractId, setActiveContractId] = useState<string | null>(null)
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
@@ -129,6 +139,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   const activeQuote = events.find((item) => item.id === activeQuoteId)
   const activePayments = events.find((item) => item.id === activePaymentsId)
   const activeReceipt = receipts.find((item) => item.id === activeReceiptId)
+  const activeEventView = events.find((item) => item.id === activeEventViewId)
   const editingEvent = events.find((item) => item.id === editingEventId)
   const revisionRef = useRef(initialRevision)
   const latestRef = useRef<WorkspaceData>(initialWorkspace)
@@ -245,10 +256,9 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   const openEditEvent = (id: string) => {
     const event = events.find((item) => item.id === id)
     if (!event) return
-    if (event.contractStatus === 'Assinado') {
-      notify('Este evento possui contrato assinado. O documento assinado foi preservado e não pode ser alterado.')
-      return
-    }
+    if (event.contractStatus === 'Assinado')
+      notify('Editando dados operacionais. A versão do contrato já assinada continuará congelada e inalterada.')
+    setActiveEventViewId(null)
     setEditingEventId(id)
   }
 
@@ -260,6 +270,32 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
       notify(error instanceof Error ? error.message : 'Não foi possível editar este documento.')
       return
     }
+
+    if (previous.contractStatus === 'Assinado') {
+      const updated: BuffetEvent = {
+        ...event,
+        contractStatus: 'Assinado',
+        signature: previous.signature,
+        shareToken: previous.shareToken,
+        shareUrl: previous.shareUrl,
+        sharedAt: previous.sharedAt,
+        signedEventSnapshot: previous.signedEventSnapshot,
+        signedTotal: previous.signedTotal,
+        signedServices: previous.signedServices,
+        signedMenu: previous.signedMenu,
+        signedSettings: previous.signedSettings,
+        signedContractTemplate: previous.signedContractTemplate,
+        quoteToken: undefined,
+        quoteUrl: undefined,
+        quoteSharedAt: undefined,
+        updatedAfterSignatureAt: new Date().toISOString()
+      }
+      setEvents((current) => current.map((item) => item.id === event.id ? updated : item))
+      setEditingEventId(null)
+      notify('Evento atualizado. O contrato assinado e sua evidência permanecem exatamente na versão assinada.')
+      return
+    }
+
     const templateChanged = previous.contractTemplateId !== event.contractTemplateId
     const updated: BuffetEvent = {
       ...event,
@@ -363,7 +399,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
           )}
           {section === 'events' && (
-            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onEdit={openEditEvent} onPayments={setActivePaymentsId} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
+            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onView={setActiveEventViewId} onEdit={openEditEvent} onPayments={setActivePaymentsId} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
           )}
           {section === 'menus' && (
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
@@ -385,6 +421,13 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
 
       {wizardOpen && (
         <EventWizard events={events} menus={menus} services={services} settings={settings} onClose={() => setWizardOpen(false)} onSave={createEvent} />
+      )}
+      {activeEventView && (
+        <EventDetailsModal event={activeEventView} menus={menus} services={services}
+          onClose={() => setActiveEventViewId(null)}
+          onEdit={() => openEditEvent(activeEventView.id)}
+          onPayments={() => { setActiveEventViewId(null); setActivePaymentsId(activeEventView.id) }}
+          onContract={() => { setActiveEventViewId(null); setActiveContractId(activeEventView.id) }} />
       )}
       {editingEvent && (
         <EventWizard events={events} menus={menus} services={services} settings={settings} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
@@ -643,11 +686,12 @@ function Metric({ icon: Icon, label, value, note }: { icon: typeof Users; label:
   )
 }
 
-function EventsView({ events, menus, services, onNew, onEdit, onPayments, onOpenContract, onOpenQuote, onDelete }: {
+function EventsView({ events, menus, services, onNew, onView, onEdit, onPayments, onOpenContract, onOpenQuote, onDelete }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onNew: () => void
+  onView: (id: string) => void
   onEdit: (id: string) => void
   onPayments: (id: string) => void
   onOpenContract: (id: string) => void
@@ -679,7 +723,7 @@ function EventsView({ events, menus, services, onNew, onEdit, onPayments, onOpen
                 <td>{event.guests}</td>
                 <td><strong>{money(eventTotal(event, menus, services))}</strong></td>
                 <td><span className={statusClass(event.contractStatus)}>{event.contractStatus}</span></td>
-                <td><div className="row-actions"><button title="Editar evento" onClick={() => onEdit(event.id)}><Pencil size={17} /></button><button title="Lançar recebimentos" onClick={() => onPayments(event.id)}><CircleDollarSign size={17} /></button><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
+                <td><div className="row-actions"><button title="Visualizar evento" onClick={() => onView(event.id)}><Eye size={17} /></button><button title="Editar evento" onClick={() => onEdit(event.id)}><Pencil size={17} /></button><button title="Lançar recebimentos" onClick={() => onPayments(event.id)}><CircleDollarSign size={17} /></button><button title="Criar orçamento" onClick={() => onOpenQuote(event.id)}><WalletCards size={17} /></button><button title="Abrir contrato" onClick={() => onOpenContract(event.id)}><FileText size={17} /></button><button title="Excluir" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button></div></td>
               </tr>
             ))}
           </tbody>
@@ -698,6 +742,7 @@ function EventsView({ events, menus, services, onNew, onEdit, onPayments, onOpen
               <div><span>Valor</span><strong>{money(eventTotal(event, menus, services))}</strong></div>
             </div>
             <div className="mobile-event-actions">
+              <button onClick={() => onView(event.id)}><Eye size={16} /> Visualizar</button>
               <button onClick={() => onEdit(event.id)}><Pencil size={16} /> Editar</button>
               <button onClick={() => onPayments(event.id)}><CircleDollarSign size={16} /> Recebimentos</button>
               <button onClick={() => onOpenQuote(event.id)}><WalletCards size={16} /> Orçamento</button>
@@ -709,6 +754,59 @@ function EventsView({ events, menus, services, onNew, onEdit, onPayments, onOpen
       </div>
       {!filtered.length && <EmptyState title="Nenhum evento encontrado" subtitle="Ajuste a busca ou crie um novo evento." />}
     </section>
+  )
+}
+
+function EventDetailsModal({ event, menus, services, onClose, onEdit, onPayments, onContract }: {
+  event: BuffetEvent
+  menus: MenuItem[]
+  services: ServiceItem[]
+  onClose: () => void
+  onEdit: () => void
+  onPayments: () => void
+  onContract: () => void
+}) {
+  const menu = menus.find((item) => item.id === event.menuId)
+  const template = getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
+  const extra = extraGuestPricing(event, menu, template)
+  const total = eventTotal(event, menus, services)
+  return (
+    <div className="modal-backdrop event-details-backdrop">
+      <div className="event-details-modal">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <header className="event-details-head">
+          <div><span className="eyebrow">VISUALIZAÇÃO DO EVENTO</span><h2>{event.clientName}</h2>
+            <p>{event.contractNumber} · {event.eventType}</p></div>
+          <span className={statusClass(event.contractStatus)}>{event.contractStatus}</span>
+        </header>
+        {event.contractStatus === 'Assinado' && (
+          <div className="signed-event-preservation"><ShieldCheck size={19}/><div><strong>Contrato assinado preservado</strong>
+            <span>Você pode editar o evento para a operação do buffet. Essas alterações não modificam a cópia contratual assinada, o hash nem a evidência da assinatura.</span></div></div>
+        )}
+        <div className="event-details-grid">
+          <div><span>Data</span><strong>{dateBR(event.eventDate)}</strong></div>
+          <div><span>Horário</span><strong>{event.startTime} — {event.endTime}</strong></div>
+          <div><span>Convidados contratados</span><strong>{event.guests}</strong></div>
+          <div><span>Valor atual do evento</span><strong>{money(total)}</strong></div>
+          <div className="wide"><span>Local</span><strong>{event.venue}{event.venueAddress ? ' · ' + event.venueAddress : ''}</strong></div>
+          <div><span>Cardápio</span><strong>{menu?.name || 'Locação / não informado'}</strong></div>
+          <div><span>Contato</span><strong>{event.clientPhone || 'Não informado'}</strong></div>
+        </div>
+        {template.type === 'services' && (
+          <section className="event-extra-summary">
+            <div><span>Convidado adicional até {extra.deadlineDays} dias antes</span><strong>{money(extra.advance)} / pessoa</strong></div>
+            <div className="day-price"><span>Excedente apurado no dia da festa</span><strong>{money(extra.eventDay)} / pessoa</strong></div>
+            <p>O valor do dia pode ser maior para funcionar como cobrança por excedente de última hora. Os valores são congelados no evento quando ele é salvo.</p>
+          </section>
+        )}
+        {event.updatedAfterSignatureAt && <p className="event-post-sign-note">Dados operacionais atualizados após a assinatura em {new Date(event.updatedAfterSignatureAt).toLocaleString('pt-BR')}.</p>}
+        <footer className="event-details-actions">
+          <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={16}/> Recebimentos</button>
+          <button className="btn btn-quiet" onClick={onContract}><FileText size={16}/> Ver contrato</button>
+          <button className="btn btn-primary" onClick={onEdit}><Pencil size={16}/> Editar evento</button>
+        </footer>
+      </div>
+    </div>
   )
 }
 
@@ -1009,6 +1107,11 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
     menuId: menus.find((menu) => menu.active !== false)?.id || menus[0]?.id || '',
     basePrice: 0,
     menuPricePerPerson: menus.find((menu) => menu.active !== false)?.pricePerPerson || 0,
+    extraGuestAdvancePrice: menus.find((menu) => menu.active !== false)?.extraGuestAdvancePrice ??
+      menus.find((menu) => menu.active !== false)?.pricePerPerson ?? 0,
+    extraGuestEventDayPrice: menus.find((menu) => menu.active !== false)?.extraGuestEventDayPrice ??
+      getContractTemplate(menus.find((menu) => menu.active !== false)?.contractTemplateId).extraGuestPrice ?? 0,
+    extraGuestAdvanceDeadlineDays: 7,
     menuSelections: {},
     cakeDescription: '',
     contractTemplateId: menus.find((menu) => menu.active !== false)?.contractTemplateId || contractTemplates[0]?.id,
@@ -1028,6 +1131,13 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
   const total = eventTotal(form, menus, services)
   const selectedMenu = menus.find((menu) => menu.id === form.menuId)
   const selectedTemplate = getContractTemplate(form.contractTemplateId)
+  const extraGuest = extraGuestPricing(form, selectedMenu, selectedTemplate)
+  const normalizedForm: BuffetEvent = {
+    ...form,
+    extraGuestAdvancePrice: extraGuest.advance,
+    extraGuestEventDayPrice: extraGuest.eventDay,
+    extraGuestAdvanceDeadlineDays: extraGuest.deadlineDays
+  }
   const compatibleContractTemplates = contractTemplates.filter((template) => form.menuId ? template.type === 'services' : template.type === 'space-rental')
   const isRental = selectedTemplate.type === 'space-rental'
   const venueRestricted = (isRental || Boolean(selectedMenu?.unitRestriction)) && form.venueMode !== undefined && form.venueMode !== 'buffet'
@@ -1083,6 +1193,10 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
         </div>
         <div className="wizard-main">
           <button className="modal-close" onClick={onClose}><X size={20} /></button>
+          {editing && initial?.contractStatus === 'Assinado' && (
+            <div className="signed-event-edit-warning"><ShieldCheck size={18}/><div><strong>Evento com contrato assinado</strong>
+              <span>Você pode alterar data operacional, convidados, cardápio, serviços e demais dados do evento. A cópia contratual já assinada permanece congelada e não será reescrita.</span></div></div>
+          )}
           {step === 1 && (
             <div className="wizard-content">
               <span className="eyebrow">PASSO 1 DE 3</span><h2>Comece pelo essencial.</h2><p className="lead">Identifique o cliente e reserve a data do evento.</p>
@@ -1146,6 +1260,11 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
                     menuId: menu.id,
                     basePrice: 0,
                     menuPricePerPerson: menu.pricePerPerson,
+                    extraGuestAdvancePrice: menu.extraGuestAdvancePrice ?? menu.pricePerPerson,
+                    extraGuestEventDayPrice: menu.extraGuestEventDayPrice ??
+                      getContractTemplate(menu.contractTemplateId || current.contractTemplateId).extraGuestPrice ??
+                      menu.pricePerPerson,
+                    extraGuestAdvanceDeadlineDays: 7,
                     menuSelections: {},
                     contractTemplateId: menu.contractTemplateId || current.contractTemplateId
                   }))}>
@@ -1178,6 +1297,18 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
                   <div className="form-grid two compact">
                     <Field label="Valor por pessoa *" value={String(form.menuPricePerPerson ?? selectedMenu.pricePerPerson ?? 0)} onChange={(v) => set('menuPricePerPerson', Math.max(0, Number(v)))} type="number" prefix="R$" />
                     <div className="field"><label>Modelo contratual vinculado</label><select value={form.contractTemplateId || ''} onChange={(e) => set('contractTemplateId', e.target.value)}>{compatibleContractTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></div>
+                    <div className="extra-guest-config span-2">
+                      <div className="form-section-title"><Users size={17}/><div><strong>Convidados excedentes</strong><span>Valores puxados automaticamente para o evento e para as condições comerciais do contrato.</span></div></div>
+                      <div className="form-grid two compact">
+                        <Field label={'Adicional por pessoa até ' + extraGuest.deadlineDays + ' dias antes'} value={String(extraGuest.advance)}
+                          onChange={(v) => set('extraGuestAdvancePrice', Math.max(0, Number(v)))} type="number" prefix="R$" />
+                        <Field label="Excedente por pessoa no dia da festa" value={String(extraGuest.eventDay)}
+                          onChange={(v) => set('extraGuestEventDayPrice', Math.max(0, Number(v)))} type="number" prefix="R$" />
+                        <Field label="Prazo do valor antecipado (dias)" value={String(extraGuest.deadlineDays)}
+                          onChange={(v) => set('extraGuestAdvanceDeadlineDays', Math.max(1, Math.floor(Number(v) || 7)))} type="number" />
+                      </div>
+                      <p>Até o prazo acima, o acréscimo usa o primeiro valor. Excedentes identificados no dia da festa usam o segundo valor, que pode ser mais alto.</p>
+                    </div>
                     {selectedMenu.choiceGroups?.map((group) => {
                       const currentValue = form.menuSelections?.[group.id]
                       if (group.id === 'pasta' || group.id === 'sauce') {
@@ -1359,7 +1490,7 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
           )}
           <div className="wizard-actions">
             <button className="btn btn-quiet" onClick={() => step === 1 ? onClose() : setStep(step - 1)}>{step === 1 ? 'Cancelar' : 'Voltar'}</button>
-            {step < 3 ? <button className="btn btn-primary" disabled={!canContinue} onClick={() => setStep(step + 1)}>Continuar <ChevronRight size={17} /></button> : <button className="btn btn-primary" onClick={() => onSave(form)}><FileSignature size={17} /> {editing ? 'Salvar alterações' : 'Gerar evento e contrato'}</button>}
+            {step < 3 ? <button className="btn btn-primary" disabled={!canContinue} onClick={() => setStep(step + 1)}>Continuar <ChevronRight size={17} /></button> : <button className="btn btn-primary" onClick={() => onSave(normalizedForm)}><FileSignature size={17} /> {editing ? 'Salvar alterações' : 'Gerar evento e contrato'}</button>}
           </div>
         </div>
       </div>
@@ -1372,6 +1503,9 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
   const [category, setCategory] = useState(initial?.category || 'Personalizado')
   const [description, setDescription] = useState(initial?.description || '')
   const [price, setPrice] = useState(initial?.pricePerPerson || 0)
+  const [extraAdvancePrice, setExtraAdvancePrice] = useState(initial?.extraGuestAdvancePrice ?? initial?.pricePerPerson ?? 0)
+  const [extraEventDayPrice, setExtraEventDayPrice] = useState(initial?.extraGuestEventDayPrice ??
+    getContractTemplate(initial?.contractTemplateId).extraGuestPrice ?? 0)
   const [items, setItems] = useState(initial?.items.join(', ') || '')
   const [cakeFieldLabel, setCakeFieldLabel] = useState(initial?.cakeFieldLabel || '')
   const [unitRestriction, setUnitRestriction] = useState(initial?.unitRestriction || '')
@@ -1423,6 +1557,8 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
       category,
       description,
       pricePerPerson: price,
+      extraGuestAdvancePrice: Math.max(0, extraAdvancePrice),
+      extraGuestEventDayPrice: Math.max(0, extraEventDayPrice),
       items: items.split(',').map((item) => item.trim()).filter(Boolean),
       cakeFieldLabel: cakeFieldLabel || undefined,
       unitRestriction: unitRestriction || undefined,
@@ -1453,6 +1589,10 @@ function MenuEditor({ onClose, onSave, initial }: { onClose: () => void; onSave:
             <Field label="Nome" value={name} onChange={setName} />
             <Field label="Categoria" value={category} onChange={setCategory} />
             <Field label="Valor por pessoa" value={String(price)} onChange={(v) => setPrice(Number(v))} type="number" />
+            <Field label="Adicional por pessoa até 7 dias antes" value={String(extraAdvancePrice)}
+              onChange={(v) => setExtraAdvancePrice(Math.max(0, Number(v)))} type="number" />
+            <Field label="Excedente por pessoa no dia da festa" value={String(extraEventDayPrice)}
+              onChange={(v) => setExtraEventDayPrice(Math.max(0, Number(v)))} type="number" />
             <Field label="Restrição de unidade" value={unitRestriction} onChange={setUnitRestriction} />
             <Field label="Campo de bolo" value={cakeFieldLabel} onChange={setCakeFieldLabel} />
             <Field label="Website do material" value={website} onChange={setWebsite} />
@@ -1739,6 +1879,8 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
   const menuSubtotal = isRental ? (event.basePrice || 0) : menuPrice * event.guests
   const servicesSubtotal = services.reduce((sum, service) => sum + (service.pricing === 'person' ? service.price * event.guests * (service.quantity || 1) : service.price * (service.quantity || 1)), 0)
+  const extraGuest = extraGuestPricing(event, menu, template)
+  const hasConfiguredExtraGuestPricing = event.extraGuestAdvancePrice !== undefined || event.extraGuestEventDayPrice !== undefined
   const quoteNumber = event.contractNumber.replace('CTR-', 'ORC-')
   const expiry = expiresAt
     ? new Date(expiresAt)
@@ -1800,6 +1942,10 @@ function QuoteDocument({ event, menu, services, settings, total, expiresAt, temp
         <p className="doc-clause"><strong>Condições de pagamento.</strong> {settings.paymentTerms}</p>
         <p className="doc-clause"><strong>Formas previstas no documento.</strong> {template.paymentMethods.join(', ')}.</p>
         <PaymentDocumentDetails event={event} template={template} />
+        {hasConfiguredExtraGuestPricing && <div className="quote-extra-guest">
+          <span><strong>Adicional até {extraGuest.deadlineDays} dias antes:</strong> {money(extraGuest.advance)} / pessoa</span>
+          <span><strong>Excedente no dia da festa:</strong> {money(extraGuest.eventDay)} / pessoa</span>
+        </div>}
         {event.notes && <p className="doc-clause"><strong>Observações.</strong> {event.notes}</p>}
       </section>
 
@@ -2218,6 +2364,8 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
 }) {
   const template = templateOverride || getContractTemplate(event.contractTemplateId || menu?.contractTemplateId)
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
+  const extraGuest = extraGuestPricing(event, menu, template)
+  const hasConfiguredExtraGuestPricing = event.extraGuestAdvancePrice !== undefined || event.extraGuestEventDayPrice !== undefined
   const title = template.type === 'space-rental' ? 'Contrato de Locação do Espaço' : 'Contrato de Prestação de Serviços'
   const subtitle = template.type === 'space-rental' ? 'LOCAÇÃO DO ESPAÇO' : 'PRESTAÇÃO DE SERVIÇOS'
   const signatureDate = event.signature
@@ -2329,7 +2477,14 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <p className="doc-clause"><strong>Cancelamento.</strong> {template.cancellationSummary}</p>
         <p className="doc-clause"><strong>Formas de pagamento previstas.</strong> {template.paymentMethods.join(', ')}.</p>
         <PaymentDocumentDetails event={event} template={template} />
-        {template.extraGuestPrice && <p className="doc-clause"><strong>Convidado excedente.</strong> {money(template.extraGuestPrice)} por pessoa, conforme o documento selecionado. Pagantes a partir de 6 anos e 12 meses quando assim previsto no material.</p>}
+        {hasConfiguredExtraGuestPricing ? (
+          <div className="doc-extra-guest-rule">
+            <strong>Convidados adicionais e excedentes.</strong>
+            <span>Até {extraGuest.deadlineDays} dias antes do evento, mediante comunicação e pagamento prévio: <b>{money(extraGuest.advance)} por pessoa</b>.</span>
+            <span>Convidado excedente apurado no dia da festa: <b>{money(extraGuest.eventDay)} por pessoa</b>, em dinheiro ou cartão, sem alterar a quantidade originalmente contratada.</span>
+            <small>Regra operacional vinculada a este evento. As cláusulas transcritas do documento de origem permanecem preservadas abaixo.</small>
+          </div>
+        ) : template.extraGuestPrice ? <p className="doc-clause"><strong>Convidado excedente.</strong> {money(template.extraGuestPrice)} por pessoa, conforme o documento selecionado. Pagantes a partir de 6 anos e 12 meses quando assim previsto no material.</p> : null}
         {template.overtimePenaltyPercent && <p className="doc-clause"><strong>Tempo excedente.</strong> Acréscimo proporcional mais multa de {template.overtimePenaltyPercent}% conforme o modelo de locação.</p>}
         {event.notes && <p className="doc-clause"><strong>Observações específicas.</strong> {event.notes}</p>}
       </section>
