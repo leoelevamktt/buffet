@@ -2308,11 +2308,15 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
         </div>
         <div className="contract-model-bar no-print">
           <div><FileText size={17} /><span><strong>Modelo do contrato</strong><small>Escolha o padrão que será usado neste evento.</small></span></div>
-          <select value={event.contractTemplateId || contractTemplate.id} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado'}>
+          <select value={event.contractStatus === 'Assinado' ? printTemplate.id : (event.contractTemplateId || contractTemplate.id)} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado'}>
             {compatibleTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
           {(event.customContractHtml || event.customContractFullHtml) && <span className="contract-custom-badge"><Pencil size={13} /> Personalizado</span>}
         </div>
+        {event.contractStatus === 'Assinado' && event.updatedAfterSignatureAt && (
+          <div className="signed-preserved-banner no-print"><ShieldCheck size={17}/><div><strong>Visualizando a versão assinada</strong>
+            <span>O evento teve alterações operacionais depois da assinatura. Este documento continua exibindo o snapshot congelado no momento da assinatura.</span></div></div>
+        )}
         {event.shareUrl && event.contractStatus !== 'Assinado' && (
           <div className="share-banner no-print">
             <div><CheckCircle2 size={17} /><span><strong>Contrato disponível para assinatura</strong><small>Envie o link ao cliente. O painel verifica automaticamente quando ele assinar.</small></span></div>
@@ -2366,6 +2370,14 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
   const menuPrice = event.menuPricePerPerson ?? menu?.pricePerPerson ?? 0
   const extraGuest = extraGuestPricing(event, menu, template)
   const hasConfiguredExtraGuestPricing = event.extraGuestAdvancePrice !== undefined || event.extraGuestEventDayPrice !== undefined
+  const contractClauses = hasConfiguredExtraGuestPricing ? template.clauses.map((clause) => {
+    if (/custos extras decorrentes de número excedente de convidados/i.test(clause))
+      return clause.replace(/R\$\s*\d[\d.]*,\d{2}/, money(extraGuest.eventDay).replace(/\u00a0/g, ' '))
+    if (/aumentar o pacote até 1 semana antes/i.test(clause))
+      return clause + ' Para este evento, o valor do acréscimo antecipado é de ' +
+        money(extraGuest.advance).replace(/\u00a0/g, ' ') + ' por pessoa.'
+    return clause
+  }) : template.clauses
   const title = template.type === 'space-rental' ? 'Contrato de Locação do Espaço' : 'Contrato de Prestação de Serviços'
   const subtitle = template.type === 'space-rental' ? 'LOCAÇÃO DO ESPAÇO' : 'PRESTAÇÃO DE SERVIÇOS'
   const signatureDate = event.signature
@@ -2493,7 +2505,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
         <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>{event.customContractHtml ? 'Conteúdo contratual personalizado' : 'Cláusulas do modelo ' + template.name}</h2></div>
         {event.customContractHtml
           ? <div className="custom-contract-rich" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(event.customContractHtml) }} />
-          : <div className="clause-list">{template.clauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>}
+          : <div className="clause-list">{contractClauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>}
         {(!menu || menu.sourceLabel !== template.sourceLabel) && <TemplateOperationalDetails template={template} />}
       </section>
 
