@@ -36,6 +36,10 @@ export interface MenuItem {
   name: string
   description: string
   pricePerPerson: number
+  /** Valor por pessoa para aumento do pacote comunicado/pago antes do prazo limite. */
+  extraGuestAdvancePrice?: number
+  /** Valor punitivo por pessoa excedente apurada no dia do evento. */
+  extraGuestEventDayPrice?: number
   category: string
   items: string[]
   active?: boolean
@@ -167,6 +171,14 @@ export interface BuffetEvent {
   menuId: string
   basePrice?: number
   menuPricePerPerson?: number
+  /** Valor congelado no evento para acréscimo de convidados com antecedência. */
+  extraGuestAdvancePrice?: number
+  /** Valor congelado no evento para convidado excedente no dia da festa. */
+  extraGuestEventDayPrice?: number
+  /** Prazo, em dias, para usar o valor antecipado. Padrão operacional: 7 dias. */
+  extraGuestAdvanceDeadlineDays?: number
+  /** Marca que dados operacionais foram alterados depois da assinatura, sem alterar o snapshot assinado. */
+  updatedAfterSignatureAt?: string
   menuSelections?: Record<string, string | string[]>
   cakeDescription?: string
   contractTemplateId?: string
