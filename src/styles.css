@@ -1264,3 +1264,19 @@ td strong{font-size:11px}
   .signed-event-edit-warning,.event-details-backdrop{display:none!important}
   .doc-extra-guest-rule{break-inside:avoid-page}
 }
+
+
+.signed-preserved-banner{
+  margin:12px 18px 0;padding:12px 14px;border:1px solid #cfdfcf;background:#f4f8f2;
+  display:flex;align-items:flex-start;gap:10px;color:#355a3c
+}
+.signed-preserved-banner svg{flex:0 0 auto;margin-top:1px}
+.signed-preserved-banner>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.signed-preserved-banner strong{font-size:11px}
+.signed-preserved-banner span{font-size:9px;line-height:1.5;color:#6b7b6c}
+@media(max-width:760px){
+  .signed-preserved-banner{margin:8px 8px 0;padding:10px}
+}
+@media print{
+  .signed-preserved-banner{display:none!important}
+}
