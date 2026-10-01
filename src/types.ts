@@ -1,6 +1,21 @@
 export type ContractStatus = 'Rascunho' | 'Enviado' | 'Assinado'
 export type EventStatus = 'Proposta' | 'Confirmado' | 'Concluído'
 
+export interface Client {
+  id: string
+  name: string
+  document: string
+  rg?: string
+  address?: string
+  email: string
+  phone: string
+  phoneSecondary?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+
 export interface MenuChoiceGroup {
   id: string
   label: string
@@ -147,6 +162,7 @@ export interface Signature {
 export interface BuffetEvent {
   id: string
   contractNumber: string
+  clientId?: string
   clientName: string
   clientDocument: string
   clientRg?: string
@@ -227,4 +243,4 @@ export interface BusinessSettings {
   cancellationTerms: string
 }
 
-export type Section = 'dashboard' | 'events' | 'menus' | 'contracts' | 'receipts' | 'agenda' | 'settings' | 'users' | 'profile'
+export type Section = 'dashboard' | 'events' | 'clients' | 'menus' | 'contracts' | 'receipts' | 'agenda' | 'settings' | 'users' | 'profile'
