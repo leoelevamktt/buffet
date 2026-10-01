@@ -14,9 +14,11 @@ import { uid } from './storage'
 import { WorkspaceGate } from './components/WorkspaceGate'
 import { UsersView } from './components/UsersView'
 import { ProfileView } from './components/ProfileView'
+import { ClientsView } from './components/ClientsView'
 import type { AccountUser } from './auth'
 import { downloadWorkspace, type WorkspaceData } from './workspace'
-import type { BuffetEvent, BusinessSettings, ContractTemplate, EventServiceItem, MenuItem, ReceivedPayment, Section, ServiceItem } from './types'
+import type { BuffetEvent, BusinessSettings, Client, ContractTemplate, EventServiceItem, MenuItem, ReceivedPayment, Section, ServiceItem } from './types'
+import { ensureClientForEvent, eventFromClient } from './clients'
 import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal, initialReceivedPayments, money, phoneDigits, receivedTotal, shortDate, statusClass } from './utils'
 import { brandMark } from './brand'
 import { PaymentsModal } from './components/PaymentsModal'
@@ -31,6 +33,7 @@ import './styles.css'
 const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'events', label: 'Eventos', icon: Sparkles },
+  { id: 'clients', label: 'Clientes', icon: UserRound },
   { id: 'menus', label: 'Cardápios', icon: UtensilsCrossed },
   { id: 'contracts', label: 'Contratos', icon: FileSignature },
   { id: 'receipts', label: 'Recibos', icon: FileText },
@@ -121,10 +124,12 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
 }) {
   const [section, setSection] = useState<Section>('dashboard')
   const [events, setEvents] = useState<BuffetEvent[]>(initialWorkspace.events)
+  const [clients, setClients] = useState<Client[]>(initialWorkspace.clients)
   const [menus, setMenus] = useState<MenuItem[]>(initialWorkspace.menus)
   const [services, setServices] = useState<ServiceItem[]>(initialWorkspace.services)
   const [settings, setSettings] = useState<BusinessSettings>(initialWorkspace.settings)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [newEventClientId, setNewEventClientId] = useState<string | null>(null)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [activeEventViewId, setActiveEventViewId] = useState<string | null>(null)
   const [menuEditorOpen, setMenuEditorOpen] = useState(false)
@@ -185,15 +190,15 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
 
   useEffect(() => {
     const previous = previousWorkspaceRef.current
-    if (previous.events === events && previous.menus === menus && previous.services === services &&
+    if (previous.events === events && previous.clients === clients && previous.menus === menus && previous.services === services &&
         previous.settings === settings && previous.receipts === receipts) return
-    latestRef.current = { events, menus, services, settings, receipts }
+    latestRef.current = { events, clients, menus, services, settings, receipts }
     previousWorkspaceRef.current = latestRef.current
     dirtyRef.current = true
     setSyncState('pending')
     const timer = window.setTimeout(() => void persistWorkspace(), 650)
     return () => window.clearTimeout(timer)
-  }, [events, menus, services, settings, receipts, persistWorkspace])
+  }, [events, clients, menus, services, settings, receipts, persistWorkspace])
 
 
   useEffect(() => {
@@ -232,9 +237,12 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   }
 
   const createEvent = (event: BuffetEvent) => {
-    setEvents((current) => [event, ...current])
+    const synced = ensureClientForEvent(event, clients)
+    setClients(synced.clients)
+    setEvents((current) => [synced.event, ...current])
     setWizardOpen(false)
-    notify('Evento criado e contrato preparado.')
+    setNewEventClientId(null)
+    notify('Evento criado e cliente salvo no cadastro.')
     setSection('events')
   }
 
@@ -270,6 +278,10 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
       notify(error instanceof Error ? error.message : 'Não foi possível editar este documento.')
       return
     }
+
+    const synced = ensureClientForEvent(event, clients)
+    setClients(synced.clients)
+    event = synced.event
 
     if (previous.contractStatus === 'Assinado') {
       const updated: BuffetEvent = {
@@ -399,7 +411,11 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
             <Dashboard events={events} menus={menus} services={services} onNavigate={setSection} onOpenContract={setActiveContractId} />
           )}
           {section === 'events' && (
-            <EventsView events={events} menus={menus} services={services} onNew={() => setWizardOpen(true)} onView={setActiveEventViewId} onEdit={openEditEvent} onPayments={setActivePaymentsId} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
+            <EventsView events={events} menus={menus} services={services} onNew={() => { setNewEventClientId(null); setWizardOpen(true) }} onView={setActiveEventViewId} onEdit={openEditEvent} onPayments={setActivePaymentsId} onOpenContract={setActiveContractId} onOpenQuote={setActiveQuoteId} onDelete={deleteEvent} />
+          )}
+          {section === 'clients' && (
+            <ClientsView clients={clients} events={events} onChange={setClients} notify={notify}
+              onStartEvent={(clientId) => { setNewEventClientId(clientId); setWizardOpen(true) }} />
           )}
           {section === 'menus' && (
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
@@ -420,7 +436,9 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
       <MobileNav section={section} onNavigate={setSection} onNewEvent={() => setWizardOpen(true)} />
 
       {wizardOpen && (
-        <EventWizard events={events} menus={menus} services={services} settings={settings} onClose={() => setWizardOpen(false)} onSave={createEvent} />
+        <EventWizard events={events} clients={clients} menus={menus} services={services} settings={settings}
+          initialClientId={newEventClientId || undefined}
+          onClose={() => { setWizardOpen(false); setNewEventClientId(null) }} onSave={createEvent} />
       )}
       {activeEventView && (
         <EventDetailsModal event={activeEventView} menus={menus} services={services}
@@ -430,7 +448,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
           onContract={() => { setActiveEventViewId(null); setActiveContractId(activeEventView.id) }} />
       )}
       {editingEvent && (
-        <EventWizard events={events} menus={menus} services={services} settings={settings} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
+        <EventWizard events={events} clients={clients} menus={menus} services={services} settings={settings} initial={editingEvent} onClose={() => setEditingEventId(null)} onSave={saveEditedEvent} />
       )}
       {menuEditorOpen && (
         <MenuEditor onClose={() => setMenuEditorOpen(false)} onSave={(menu) => {
@@ -1062,16 +1080,21 @@ function SettingsView({ settings, setSettings, notify }: {
   )
 }
 
-function EventWizard({ events, menus, services, settings, onClose, onSave, initial }: {
+function EventWizard({ events, clients, menus, services, settings, onClose, onSave, initial, initialClientId }: {
   events: BuffetEvent[]
+  clients: Client[]
   menus: MenuItem[]
   services: ServiceItem[]
   settings: BusinessSettings
   onClose: () => void
   onSave: (event: BuffetEvent) => void | Promise<void>
   initial?: BuffetEvent
+  initialClientId?: string
 }) {
   const editing = Boolean(initial)
+  const preselectedClient = clients.find((client) => client.id === (initial?.clientId || initialClientId))
+  const [clientMode, setClientMode] = useState<'existing' | 'new'>(preselectedClient ? 'existing' : 'new')
+  const [selectedClientId, setSelectedClientId] = useState(preselectedClient?.id || '')
   const [step, setStep] = useState(1)
   const [customServiceName, setCustomServiceName] = useState('')
   const [customServicePrice, setCustomServicePrice] = useState(0)
@@ -1089,13 +1112,14 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
   } : ({
     id: uid('event'),
     contractNumber: contractSequence(events),
-    clientName: '',
-    clientDocument: '',
-    clientRg: '',
-    clientAddress: '',
-    clientEmail: '',
-    clientPhone: '',
-    clientPhoneSecondary: '',
+    clientId: preselectedClient?.id,
+    clientName: preselectedClient?.name || '',
+    clientDocument: preselectedClient?.document || '',
+    clientRg: preselectedClient?.rg || '',
+    clientAddress: preselectedClient?.address || '',
+    clientEmail: preselectedClient?.email || '',
+    clientPhone: preselectedClient?.phone || '',
+    clientPhoneSecondary: preselectedClient?.phoneSecondary || '',
     venueMode: 'buffet',
     venueAddress: [settings.address, settings.city].filter(Boolean).join(', '),
     eventType: 'Casamento',
@@ -1199,7 +1223,35 @@ function EventWizard({ events, menus, services, settings, onClose, onSave, initi
           )}
           {step === 1 && (
             <div className="wizard-content">
-              <span className="eyebrow">PASSO 1 DE 3</span><h2>Comece pelo essencial.</h2><p className="lead">Identifique o cliente e reserve a data do evento.</p>
+              <span className="eyebrow">PASSO 1 DE 3</span><h2>Comece pelo essencial.</h2><p className="lead">Selecione um cliente já cadastrado ou crie um novo e reserve a data do evento.</p>
+              <div className="event-client-mode">
+                <button className={clientMode === 'existing' ? 'active' : ''} type="button" disabled={!clients.length}
+                  onClick={() => {
+                    setClientMode('existing')
+                    const client = clients.find((item) => item.id === selectedClientId) || clients[0]
+                    if (client) { setSelectedClientId(client.id); setForm((current) => eventFromClient(current, client)) }
+                  }}><Users size={16}/> Cliente existente</button>
+                <button className={clientMode === 'new' ? 'active' : ''} type="button"
+                  onClick={() => {
+                    setClientMode('new'); setSelectedClientId('')
+                    setForm((current) => ({ ...current, clientId: undefined, clientName: '', clientDocument: '',
+                      clientRg: '', clientAddress: '', clientEmail: '', clientPhone: '', clientPhoneSecondary: '' }))
+                  }}><Plus size={16}/> Novo cliente</button>
+              </div>
+              {clientMode === 'existing' && clients.length > 0 && <div className="client-existing-picker">
+                <label>Cliente cadastrado</label>
+                <select value={selectedClientId} onChange={(e) => {
+                  const client = clients.find((item) => item.id === e.target.value)
+                  setSelectedClientId(e.target.value)
+                  if (client) setForm((current) => eventFromClient(current, client))
+                }}>
+                  <option value="">Selecione um cliente</option>
+                  {clients.slice().sort((a,b) => a.name.localeCompare(b.name, 'pt-BR')).map((client) =>
+                    <option key={client.id} value={client.id}>{client.name}{client.document ? ' · ' + client.document : ''}</option>)}
+                </select>
+                <small>Os dados abaixo são preenchidos automaticamente. Se você alterá-los e salvar o evento, o cadastro do cliente também será atualizado.</small>
+              </div>}
+              {!clients.length && clientMode === 'new' && <p className="client-picker-empty">Nenhum cliente cadastrado ainda. Preencha os dados abaixo; ele será salvo automaticamente ao criar o evento.</p>}
               <div className="form-grid two">
                 <Field label="Nome do cliente *" value={form.clientName} onChange={(v) => set('clientName', v)} placeholder="Nome do contratante" />
                 <Field label="CPF / CNPJ" value={form.clientDocument} onChange={(v) => set('clientDocument', v)} placeholder="Documento" />
