@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
   UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
-  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw, Eye
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw, Eye, FilePlus2
 } from 'lucide-react'
 import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
@@ -14,6 +14,8 @@ import { uid } from './storage'
 import { WorkspaceGate } from './components/WorkspaceGate'
 import { UsersView } from './components/UsersView'
 import { ProfileView } from './components/ProfileView'
+import { AddendumManager } from './components/AddendumManager'
+import { AddendumDocument } from './components/AddendumDocument'
 import { ClientsView } from './components/ClientsView'
 import type { AccountUser } from './auth'
 import { downloadWorkspace, type WorkspaceData } from './workspace'
@@ -73,6 +75,34 @@ interface RemoteQuote {
   total: number
   contractTemplate?: ContractTemplate
 }
+
+interface RemoteAddendum {
+  token: string
+  status: 'pending' | 'signed'
+  createdAt: string
+  signedAt?: string
+  document: {
+    kind: 'contract-addendum'
+    number: string
+    title: string
+    html: string
+    originalContract: {
+      number: string
+      documentHash?: string | null
+      verificationCode?: string | null
+      signedAt?: string | null
+    }
+    client: { name: string; document: string; email: string; address?: string }
+    settings: {
+      businessName: string; legalName: string; document: string
+      address: string; city: string; email: string; phone: string
+    }
+    eventReference: { id: string; type: string; date: string }
+  }
+  documentHash: string
+  signature?: NonNullable<BuffetEvent['signature']> | null
+}
+
 
 function sanitizeRichHtml(html: string) {
   const parser = new DOMParser()
