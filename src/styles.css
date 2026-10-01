@@ -1488,3 +1488,55 @@ td strong{font-size:11px}
   .addendum-brand,.addendum-reference,.addendum-linkage,.addendum-signatures,.addendum-audit{break-inside:avoid-page!important}
   .addendum-document *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
+
+
+/* Refinos do adendo profissional */
+.addendum-template-button{
+  width:auto!important;min-width:max-content;padding:0 10px!important;
+  display:inline-flex!important;align-items:center;gap:6px;
+  background:#f3eee2!important;border-color:#cdbb93!important;color:#2b3d31!important;
+  font-size:9px;font-weight:750
+}
+.addendum-template-button:hover{background:#e9dfc9!important;border-color:#bfa46e!important}
+.addendum-content>p:first-of-type{
+  margin-top:0;padding:12px 14px;border-left:3px solid #a88b58;background:#faf7ef;color:#4f5e51
+}
+.addendum-content table{
+  table-layout:fixed;border:1px solid #d4dbd3;background:#fff
+}
+.addendum-content thead th{
+  background:#263a2d;color:#fff;text-align:left;font-size:8px;letter-spacing:.04em;
+  text-transform:uppercase;line-height:1.35
+}
+.addendum-content tbody th{
+  width:24%;background:#f3f5f1;text-align:left;color:#556357;font-size:8px;
+  letter-spacing:.04em;text-transform:uppercase
+}
+.addendum-content tbody tr:nth-child(even) td{background:#fbfcf9}
+.addendum-content th,.addendum-content td{vertical-align:top;line-height:1.5}
+.addendum-content h2{
+  position:relative;padding-left:12px
+}
+.addendum-content h2:before{
+  content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;background:#a88b58
+}
+.addendum-linkage{
+  border-left:4px solid #56715b
+}
+.addendum-reference>div:nth-child(1),
+.addendum-reference>div:nth-child(2){background:#f1f4ef}
+.addendum-reference>div:nth-child(1) strong,
+.addendum-reference>div:nth-child(2) strong{font-size:11px}
+.addendum-audit{
+  border-left:4px solid #334c39
+}
+@media(max-width:760px){
+  .addendum-template-button{flex:1 1 100%;justify-content:center;min-height:38px}
+  .addendum-content table{display:block;overflow-x:auto;white-space:normal}
+  .addendum-content table thead,.addendum-content table tbody,.addendum-content table tr{min-width:620px}
+}
+@media print{
+  .addendum-content table{font-size:8pt}
+  .addendum-content thead th{background:#263a2d!important;color:#fff!important}
+  .addendum-template-button{display:none!important}
+}

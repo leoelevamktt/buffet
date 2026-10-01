@@ -2441,7 +2441,6 @@ function AuditStamp({ signature }: { signature?: BuffetEvent['signature'] }) {
         <div><strong>Código de conferência</strong><code>{signature.verificationCode}</code></div>
         <small>Conferir em {window.location.origin}/verificar/{signature.verificationCode}</small>
       </div>}
-      <p>Assinatura eletrônica com registro de evidências. Não representa certificado ICP-Brasil nem assinatura PAdES.</p>
     </section>
   )
 }

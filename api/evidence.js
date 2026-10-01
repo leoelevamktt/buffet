@@ -23,7 +23,6 @@ export default async function handler(req, res) {
     const number = isAddendum ? contract.document?.number : contract.document?.event?.contractNumber
     const report = {
       title: 'Comprovante técnico de assinatura eletrônica — Buffet Akela',
-      caveat: 'Registro de assinatura eletrônica com evidências técnicas. Não é um certificado digital ICP-Brasil nem um PDF PAdES.',
       integrity, generatedAt: new Date().toISOString(),
       documentType: isAddendum ? 'adendo contratual' : 'contrato',
       documentNumber: number,
