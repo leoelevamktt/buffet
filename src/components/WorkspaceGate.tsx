@@ -31,7 +31,18 @@ export function WorkspaceGate({ children }: Props) {
     const body = await result.json()
     if (!result.ok) throw new Error(body.error || 'Não foi possível consultar o Neon.')
     if (!body.initialized) { setPhase('bootstrap'); return }
-    setLoaded({ data: normalizeWorkspace(body.data), revision: body.revision })
+    const normalized = normalizeWorkspace(body.data)
+    let revision = body.revision
+    if (!Array.isArray(body.data?.clients)) {
+      const migration = await fetch('/api/workspace', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: normalized, revision })
+      })
+      const migrated = await migration.json()
+      if (!migration.ok) throw new Error(migrated.error || 'Não foi possível migrar os clientes existentes.')
+      revision = migrated.revision
+    }
+    setLoaded({ data: normalized, revision })
     setPhase('ready')
   }
   useEffect(() => { void load().catch((err) => { setError(err.message); setPhase('failed') }) }, [])
