@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode, FormEvent } from 'react'
 import { ArrowRight, Cloud, Database, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
 import { brandMark } from '../brand'
-import { browserSnapshot, initialWorkspace, type WorkspaceData } from '../workspace'
+import { browserSnapshot, initialWorkspace, normalizeWorkspace, type WorkspaceData } from '../workspace'
 import type { AccountUser } from '../auth'
 
 type Props = { children: (data: WorkspaceData, revision: number, user: AccountUser, logout: () => void) => ReactNode }
@@ -17,7 +17,7 @@ export function WorkspaceGate({ children }: Props) {
   const [error, setError] = useState('')
   const [working, setWorking] = useState(false)
   const [local] = useState(browserSnapshot)
-  const localAvailable = ['maison-events','maison-menus','maison-services','maison-settings','akela-receipts']
+  const localAvailable = ['maison-events','maison-menus','maison-services','maison-settings','akela-receipts','akela-clients']
     .some((key) => window.localStorage.getItem(key) !== null)
 
   const load = async () => {
@@ -31,7 +31,7 @@ export function WorkspaceGate({ children }: Props) {
     const body = await result.json()
     if (!result.ok) throw new Error(body.error || 'Não foi possível consultar o Neon.')
     if (!body.initialized) { setPhase('bootstrap'); return }
-    setLoaded({ data: body.data, revision: body.revision })
+    setLoaded({ data: normalizeWorkspace(body.data), revision: body.revision })
     setPhase('ready')
   }
   useEffect(() => { void load().catch((err) => { setError(err.message); setPhase('failed') }) }, [])
@@ -105,7 +105,7 @@ export function WorkspaceGate({ children }: Props) {
           {localAvailable ? (
             <button className="workspace-choice" onClick={()=>void bootstrap(true)} disabled={working}>
               <Cloud size={23}/><span><strong>Importar os dados deste navegador</strong>
-              <small>{local.events.length} evento(s), {local.receipts.length} recibo(s), cardápios e configurações locais.</small></span><ArrowRight size={18}/>
+              <small>{local.events.length} evento(s), {local.clients.length} cliente(s), {local.receipts.length} recibo(s), cardápios e configurações locais.</small></span><ArrowRight size={18}/>
             </button>
           ) : <div className="workspace-import-info">Nenhum evento ou recibo local foi encontrado neste navegador.</div>}
           <button className="workspace-choice" onClick={()=>void bootstrap(false)} disabled={working}>
