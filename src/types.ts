@@ -159,6 +159,27 @@ export interface Signature {
   accepted?: boolean
 }
 
+export type AddendumStatus = 'Rascunho' | 'Enviado' | 'Assinado'
+
+export interface ContractAddendum {
+  id: string
+  number: string
+  title: string
+  html: string
+  status: AddendumStatus
+  createdAt: string
+  updatedAt: string
+  shareToken?: string
+  shareUrl?: string
+  sharedAt?: string
+  signedAt?: string
+  signature?: Signature
+  originalContractNumber: string
+  originalContractToken?: string
+  originalDocumentHash?: string
+  originalVerificationCode?: string
+}
+
 export interface BuffetEvent {
   id: string
   contractNumber: string
@@ -225,6 +246,7 @@ export interface BuffetEvent {
   quoteToken?: string
   quoteUrl?: string
   quoteSharedAt?: string
+  addenda?: ContractAddendum[]
 }
 
 export interface BusinessSettings {

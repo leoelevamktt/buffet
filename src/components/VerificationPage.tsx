@@ -4,7 +4,7 @@ import { brandMark } from '../brand'
 
 type Result = {
   found: boolean; integrity: boolean; code: string
-  contractNumber?: string; documentHash: string; evidenceHash: string
+  contractNumber?: string; documentType?: string; documentNumber?: string; originalDocumentHash?: string | null; documentHash: string; evidenceHash: string
   signerName: string; signerEmail: string; signedAt: string
   emailVerified: boolean; algorithm: string; status: string
   method: string; documentFormat: string; timestampType: string
@@ -40,7 +40,8 @@ export function VerificationPage({ code }: { code: string }) {
               <span>{result.integrity ? 'Os hashes do documento e do recibo correspondem ao registro selado pelo servidor.' : 'O registro apresenta divergência e precisa ser investigado.'}</span></div>
           </div>
           <div className="verification-details">
-            <div><span>Contrato</span><strong>{result.contractNumber || 'Não informado'}</strong></div>
+            <div><span>{result.documentType === 'adendo contratual' ? 'Documento' : 'Contrato'}</span><strong>{result.documentNumber || result.contractNumber || 'Não informado'}</strong></div>
+            {result.documentType === 'adendo contratual' && <div><span>Contrato original</span><strong>{result.contractNumber || 'Não informado'}</strong></div>}
             <div><span>Signatário declarado</span><strong>{result.signerName}</strong></div>
             <div><span>E-mail</span><strong>{result.signerEmail}</strong></div>
             <div><span>Verificação por e-mail</span><strong>{result.emailVerified ? 'Confirmado por código' : 'Não confirmada independentemente'}</strong></div>
@@ -49,7 +50,8 @@ export function VerificationPage({ code }: { code: string }) {
           </div>
           <section className="verification-hashes">
             <h2><FileCheck2 size={17} /> Códigos de integridade</h2>
-            <label>SHA-256 da versão contratual congelada</label><code>{result.documentHash}</code>
+            <label>SHA-256 da versão {result.documentType === 'adendo contratual' ? 'do adendo' : 'contratual'} congelada</label><code>{result.documentHash}</code>
+            {result.originalDocumentHash && <><label>SHA-256 do contrato original vinculado</label><code>{result.originalDocumentHash}</code></>}
             <label>SHA-256 do recibo de assinatura</label><code>{result.evidenceHash}</code>
             <small>{result.documentFormat}. {result.timestampType}.</small>
           </section>

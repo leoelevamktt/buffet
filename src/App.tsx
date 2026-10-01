@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, X, Printer, Send, PenLine, Trash2, MoreHorizontal, MapPin,
   Clock3, CalendarCheck, WalletCards, ArrowUpRight, CheckCircle2, CircleDollarSign,
   UserRound, Building2, Phone, Mail, FileText, ChevronDown, Pencil, Bold, Italic,
-  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw, Eye
+  Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, RemoveFormatting, ShieldCheck, LogOut, CloudOff, Cloud, RefreshCw, Eye, FilePlus2
 } from 'lucide-react'
 import { contractTemplates, getContractTemplate } from './materials'
 import { getSourceMaterialText } from './sourceMaterials'
@@ -14,6 +14,8 @@ import { uid } from './storage'
 import { WorkspaceGate } from './components/WorkspaceGate'
 import { UsersView } from './components/UsersView'
 import { ProfileView } from './components/ProfileView'
+import { AddendumManager } from './components/AddendumManager'
+import { AddendumDocument } from './components/AddendumDocument'
 import { ClientsView } from './components/ClientsView'
 import type { AccountUser } from './auth'
 import { downloadWorkspace, type WorkspaceData } from './workspace'
@@ -73,6 +75,34 @@ interface RemoteQuote {
   total: number
   contractTemplate?: ContractTemplate
 }
+
+interface RemoteAddendum {
+  token: string
+  status: 'pending' | 'signed'
+  createdAt: string
+  signedAt?: string
+  document: {
+    kind: 'contract-addendum'
+    number: string
+    title: string
+    html: string
+    originalContract: {
+      number: string
+      documentHash?: string | null
+      verificationCode?: string | null
+      signedAt?: string | null
+    }
+    client: { name: string; document: string; email: string; address?: string }
+    settings: {
+      businessName: string; legalName: string; document: string
+      address: string; city: string; email: string; phone: string
+    }
+    eventReference: { id: string; type: string; date: string }
+  }
+  documentHash: string
+  signature?: NonNullable<BuffetEvent['signature']> | null
+}
+
 
 function sanitizeRichHtml(html: string) {
   const parser = new DOMParser()
@@ -2161,6 +2191,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
   const [sharing, setSharing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [editingContract, setEditingContract] = useState(false)
+  const [managingAddenda, setManagingAddenda] = useState(false)
   const [contactPhone, setContactPhone] = useState(event.clientPhone || event.clientPhoneSecondary || '')
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = eventServices(event, services)
@@ -2350,6 +2381,9 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
                 <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
               </select></label>}
             <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato inteiro</button>
+            {event.contractStatus === 'Assinado' && <button className="btn btn-quiet addendum-launch" onClick={() => setManagingAddenda(true)}>
+              <FilePlus2 size={17}/> Adendos {(event.addenda?.length || 0) > 0 ? '(' + event.addenda!.length + ')' : ''}
+            </button>}
             <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos / Recibos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
@@ -2382,6 +2416,8 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
         documentHtml={document.querySelector('.contract-overlay .contract-shell .contract-document')?.outerHTML || ''}
         resetHtml={renderToStaticMarkup(<ContractDocument event={{ ...event, customContractHtml: undefined, customContractFullHtml: undefined }} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />)}
         onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
+      {managingAddenda && <AddendumManager event={event} settings={settings}
+        onClose={() => setManagingAddenda(false)} onChange={(addenda) => onUpdate({ addenda })} notify={notify} />}
     </div>
   )
 }
@@ -2573,12 +2609,13 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
   )
 }
 
-function SignatureModal({ event, onClose, onSign, token, emailVerificationRequired }: {
+function SignatureModal({ event, onClose, onSign, token, emailVerificationRequired, documentLabel = 'contrato' }: {
   event: BuffetEvent
   onClose: () => void
   onSign: (signature: NonNullable<BuffetEvent['signature']>) => Promise<void> | void
   token: string
   emailVerificationRequired: boolean
+  documentLabel?: 'contrato' | 'adendo'
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [name, setName] = useState(event.clientName)
@@ -2627,7 +2664,7 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
     setError('')
     try {
       if (email.trim().toLowerCase() !== (event.clientEmail || '').trim().toLowerCase())
-        throw new Error('Informe o mesmo e-mail que consta no contrato.')
+        throw new Error('Informe o mesmo e-mail que consta no ' + documentLabel + '.')
       const response = await fetch('/api/otp', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
@@ -2674,13 +2711,13 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
         <button className="modal-close" onClick={onClose} disabled={submitting}><X size={20} /></button>
         <div className="signature-icon"><PenLine size={22} /></div>
         <span className="eyebrow">ASSINATURA ELETRÔNICA</span><h2>Confirme o aceite.</h2>
-        <p className="lead">Confira seus dados e leia o contrato antes de assinar. O sistema registra a versão do documento e as evidências técnicas do aceite.</p>
+        <p className="lead">Confira seus dados e leia o {documentLabel} antes de assinar. O sistema registra a versão do documento e as evidências técnicas do aceite.</p>
         <div className="form-grid two signature-identity-grid">
           <Field label="Nome completo *" value={name} onChange={setName} />
           <Field label="CPF / CNPJ *" value={document} onChange={setDocument} />
           <div className="field span-2"><label>E-mail do signatário *</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@email.com" autoComplete="email" />
-            <small>O endereço deve corresponder ao informado no contrato.</small>
+            <small>O endereço deve corresponder ao informado no {documentLabel}.</small>
           </div>
         </div>
         {emailVerificationRequired ? (
@@ -2699,9 +2736,9 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
         )}
         <div className="signature-pad-head"><label>Assinatura *</label><button onClick={clear} disabled={submitting}>Limpar</button></div>
         <canvas ref={canvasRef} width={800} height={220} className="signature-pad" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onPointerLeave={stop} />
-        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do contrato, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
+        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do {documentLabel}, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
         {error && <div className="signature-error">{error}</div>}
-        <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir contrato'}</button>
+        <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir ' + documentLabel}</button>
         <small className="legal-note">Será gerado um código único de conferência, SHA-256 da versão do documento, hash do recibo e selo de auditoria do servidor. Isso não é certificado ICP-Brasil nem assinatura digital PAdES.</small>
       </div>
     </div>
@@ -2817,6 +2854,143 @@ function PublicSigningPage({ token }: { token: string }) {
   )
 }
 
+function PublicAddendumPage({ token }: { token: string }) {
+  const [addendum, setAddendum] = useState<RemoteAddendum | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [signing, setSigning] = useState(false)
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/addenda?token=' + encodeURIComponent(token), { cache: 'no-store' })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Adendo não encontrado.')
+      setAddendum(body.addendum)
+      setEmailVerificationRequired(Boolean(body.emailVerificationRequired))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar o adendo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [token])
+
+  const sign = async (signature: NonNullable<BuffetEvent['signature']>) => {
+    const response = await fetch('/api/addenda-sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        signerName: signature.signerName,
+        signerDocument: signature.signerDocument,
+        signerEmail: signature.signerEmail,
+        emailCode: signature.emailCode,
+        clientTimezone: signature.clientTimezone,
+        dataUrl: signature.dataUrl,
+        accepted: true
+      })
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body.error || 'Não foi possível registrar a assinatura do adendo.')
+    setAddendum(body.addendum)
+    setSigning(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (loading) {
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Buffet Akela"/><strong>Carregando adendo...</strong><span>Buscando a versão segura do documento.</span></div></div>
+  }
+
+  if (error || !addendum) {
+    return <div className="public-state"><div className="public-state-card"><FileText size={34}/><strong>Não foi possível abrir este adendo</strong><span>{error || 'O link pode estar incorreto.'}</span><button className="btn btn-quiet" onClick={load}>Tentar novamente</button></div></div>
+  }
+
+  const isSigned = addendum.status === 'signed' && Boolean(addendum.signature)
+  const d = addendum.document
+  const fakeEvent: BuffetEvent = {
+    id: d.eventReference.id,
+    contractNumber: d.originalContract.number,
+    clientName: d.client.name,
+    clientDocument: d.client.document,
+    clientAddress: d.client.address || '',
+    clientEmail: d.client.email,
+    clientPhone: '',
+    eventType: d.eventReference.type || 'Adendo contratual',
+    eventDate: d.eventReference.date || new Date().toISOString().slice(0, 10),
+    startTime: '',
+    endTime: '',
+    venue: '',
+    guests: 0,
+    menuId: '',
+    serviceIds: [],
+    notes: '',
+    discount: 0,
+    deposit: 0,
+    status: 'Confirmado',
+    contractStatus: isSigned ? 'Assinado' : 'Enviado',
+    createdAt: addendum.createdAt,
+    signature: addendum.signature || undefined
+  }
+  const verificationLink = addendum.signature?.verificationCode ? '/verificar/' + addendum.signature.verificationCode : ''
+  const evidenceLink = '/api/evidence?kind=addendum&token=' + encodeURIComponent(token)
+
+  return (
+    <div className="public-addendum-page">
+      <header className="public-contract-header no-print">
+        <div className="public-brand"><img className="brand-emblem" src={brandMark} alt="Buffet Akela"/>
+          <div><strong>{d.settings.businessName}</strong><span>Adendo contratual para assinatura</span></div></div>
+        <div className="public-header-actions">
+          <span className={isSigned ? 'status status--success' : 'status status--info'}>{isSigned ? 'Adendo assinado' : 'Aguardando assinatura'}</span>
+          <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={16}/> Imprimir / PDF</button>
+        </div>
+      </header>
+
+      <div className="addendum-original-note no-print">
+        <ShieldCheck size={19}/>
+        <div><strong>Contrato original preservado</strong>
+          <span>Este documento complementa o contrato {d.originalContract.number}. A assinatura deste adendo não substitui nem reescreve a versão original.</span>
+          {d.originalContract.verificationCode && <a href={'/verificar/' + d.originalContract.verificationCode} target="_blank" rel="noreferrer">Conferir assinatura original</a>}
+        </div>
+      </div>
+
+      {isSigned ? (
+        <div className="signed-success no-print">
+          <CheckCircle2 size={22}/>
+          <div><strong>Adendo assinado e registrado</strong>
+            <span>A nova assinatura foi vinculada a esta versão do adendo e ao hash do contrato original.</span>
+            <div className="signed-success-actions">
+              {verificationLink && <a className="btn btn-quiet" href={verificationLink} target="_blank" rel="noreferrer"><ShieldCheck size={15}/> Conferir registro</a>}
+              <a className="btn btn-quiet" href={evidenceLink}><FileText size={15}/> Baixar comprovante JSON</a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="signing-intro no-print">
+          <div><span className="eyebrow">NOVA ASSINATURA NECESSÁRIA</span><strong>Olá, {d.client.name}.</strong>
+            <p>Leia o adendo completo. A assinatura abaixo registra sua concordância especificamente com estas alterações.</p></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><PenLine size={17}/> Revisar e assinar adendo</button>
+        </div>
+      )}
+
+      <AddendumDocument document={d} signature={addendum.signature}/>
+
+      {!isSigned && (
+        <div className="public-sign-sticky no-print">
+          <div><strong>Concorda com as alterações?</strong><span>Uma nova assinatura será vinculada somente a este adendo.</span></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><ClipboardSignature size={17}/> Assinar adendo</button>
+        </div>
+      )}
+
+      {signing && <SignatureModal event={fakeEvent} token={token} documentLabel="adendo"
+        emailVerificationRequired={emailVerificationRequired} onClose={() => setSigning(false)} onSign={sign}/>}
+    </div>
+  )
+}
+
 function PublicQuotePage({ token }: { token: string }) {
   const [quote, setQuote] = useState<RemoteQuote | null>(null)
   const [loading, setLoading] = useState(true)
@@ -2878,10 +3052,12 @@ function PublicQuotePage({ token }: { token: string }) {
 
 function App() {
   const signingMatch = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
+  const addendumMatch = window.location.pathname.match(/^\/adendo\/([^/]+)$/)
   const quoteMatch = window.location.pathname.match(/^\/orcamento\/([^/]+)$/)
   const verificationMatch = window.location.pathname.match(/^\/verificar\/([^/]+)$/)
   if (verificationMatch) return <VerificationPage code={verificationMatch[1]} />
   if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
+  if (addendumMatch) return <PublicAddendumPage token={addendumMatch[1]} />
   if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
   return <WorkspaceGate>{(data, revision, user, logout) => <AdminApp initialWorkspace={data} initialRevision={revision} currentUser={user} onLogout={logout} />}</WorkspaceGate>
 }
