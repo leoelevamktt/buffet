@@ -1344,3 +1344,129 @@ td strong{font-size:11px}
   .event-client-mode{grid-template-columns:1fr}
   .event-client-mode button{min-height:44px}
 }
+
+
+/* Adendos contratuais: documento independente, editável antes da nova assinatura */
+.addendum-launch{border-color:#cdbb93;background:#faf6ec}
+.addendum-overlay{position:fixed;inset:0;z-index:310;background:#e8e8e2;overflow:auto}
+.addendum-shell{min-height:100dvh;display:flex;flex-direction:column}
+.addendum-manager-head{position:sticky;top:0;z-index:5;background:#1b2a21;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 24px;box-shadow:0 4px 16px #10201524}
+.addendum-manager-head>div:first-child{min-width:0}
+.addendum-manager-head .eyebrow{color:#b9cbb8}
+.addendum-manager-head h2{font:400 23px/1.1 Georgia,serif;margin:4px 0}
+.addendum-manager-head p{font-size:10px;line-height:1.5;color:#c1cdc2;margin:0;max-width:680px}
+.addendum-manager-head>div:last-child{display:flex;align-items:center;gap:8px}
+.addendum-manager-head .icon-button{color:#fff;border-color:#526358}
+.addendum-manager-body{display:grid;grid-template-columns:280px minmax(0,1fr);flex:1;min-height:0}
+.addendum-list{background:#f4f3ee;border-right:1px solid #d7ddd4;padding:12px;display:flex;flex-direction:column;gap:7px}
+.addendum-list>button{border:1px solid #dce0d9;background:#fff;color:#26372c;padding:12px;text-align:left;display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start}
+.addendum-list>button.active{border-color:#69806d;box-shadow:inset 3px 0 #49634f;background:#f9fbf7}
+.addendum-list>button>span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.addendum-list>button strong{font-size:10px}
+.addendum-list>button small{font-size:9px;color:#7a837b;overflow-wrap:anywhere}
+.addendum-status{grid-column:2;font-style:normal;font-size:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;width:max-content;padding:4px 6px}
+.addendum-status.rascunho{background:#eeeae1;color:#746b5c}
+.addendum-status.enviado{background:#e5edf2;color:#3d667b}
+.addendum-status.assinado{background:#e6f1e7;color:#3f714d}
+.addendum-empty,.addendum-start{display:flex;flex-direction:column;align-items:center;text-align:center;color:#78827a;padding:34px 14px;gap:8px}
+.addendum-empty strong,.addendum-start h3{font:400 20px Georgia,serif;color:#2c3d31;margin:0}
+.addendum-empty span,.addendum-start p{font-size:10px;line-height:1.55;margin:0}
+.addendum-main{padding:20px;min-width:0}
+.addendum-error{border:1px solid #e2bdb8;background:#fff2ef;color:#94493f;padding:11px 13px;font-size:10px;line-height:1.5;margin-bottom:12px}
+.addendum-actions{width:min(840px,100%);margin:0 auto 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #d9ded5;padding:10px 12px}
+.addendum-actions>div{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.addendum-actions>div:first-child{flex-direction:column;align-items:flex-start}
+.addendum-actions small{font-size:9px;color:#758078}
+.addendum-editor{width:min(900px,100%);margin:0 auto;background:#f1f0eb;border:1px solid #d5dbd3}
+.addendum-editor-bar{position:sticky;top:93px;z-index:3;display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#fff;border-bottom:1px solid #d9ddd7}
+.addendum-editor-bar button{width:34px;height:34px;border:1px solid #dadfd8;background:#fff;display:grid;place-items:center;color:#46564b}
+.addendum-editor-bar select{height:34px;border:1px solid #dadfd8;background:#fff;padding:0 8px;font-size:10px}
+.addendum-title-field{display:flex;flex-direction:column;gap:5px;padding:12px 18px 0;font-size:9px;font-weight:750;color:#5d685f}
+.addendum-title-field input{height:40px;border:1px solid #d6dbd4;background:#fff;padding:0 10px}
+.addendum-editor-page{width:min(760px,calc(100% - 24px));min-height:650px;margin:12px auto 16px;background:#fff;padding:46px 50px;box-shadow:0 7px 22px #1a291b16;outline:0;font:12px/1.7 Arial,sans-serif;color:#27382d;overflow-wrap:anywhere}
+.addendum-editor-page h1{font:400 30px/1.18 Georgia,serif;margin:0 0 20px}
+.addendum-editor-page h2{font:400 21px/1.25 Georgia,serif;margin:25px 0 9px}
+.addendum-editor-page h3{font-size:13px;margin:20px 0 7px}
+.addendum-editor-page p{margin:7px 0}
+.addendum-editor-actions{display:flex;justify-content:flex-end;gap:8px;background:#fff;border-top:1px solid #d7dcd5;padding:12px}
+
+.addendum-document{width:min(840px,100%);margin:0 auto 30px;background:#fff;border:1px solid #d7dcd5;box-shadow:0 11px 35px #18251b1a;padding:44px 50px 28px;color:#26382d;font-family:Arial,sans-serif;overflow-wrap:anywhere}
+.addendum-brand{display:flex;align-items:center;gap:20px;border-bottom:1px solid #dce2da;padding-bottom:20px}
+.addendum-brand img{width:125px;max-height:110px;object-fit:contain;flex:0 0 auto}
+.addendum-brand>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.addendum-brand span{font-size:9px;letter-spacing:.15em;color:#957b57;font-weight:800}
+.addendum-brand strong{font:400 23px Georgia,serif}
+.addendum-brand small{font-size:9px;color:#748078;line-height:1.4}
+.addendum-reference{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#dfe3dc;border:1px solid #dfe3dc;margin:24px 0}
+.addendum-reference>div{background:#f7f8f4;padding:12px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.addendum-reference span{font-size:8px;letter-spacing:.08em;color:#798478}
+.addendum-reference strong{font-size:10px;overflow-wrap:anywhere}
+.addendum-content{font-size:11px;line-height:1.72;min-height:280px;padding:5px 0 20px}
+.addendum-content h1{font:400 31px/1.16 Georgia,serif;margin:8px 0 20px;color:#1d3224}
+.addendum-content h2{font:400 21px/1.2 Georgia,serif;margin:26px 0 8px;color:#263d2d}
+.addendum-content h3{font-size:12px;margin:20px 0 7px}
+.addendum-content p{margin:7px 0}
+.addendum-content table{width:100%;border-collapse:collapse;margin:12px 0}
+.addendum-content th,.addendum-content td{border:1px solid #dce1da;padding:8px;font-size:10px}
+.addendum-linkage{display:flex;align-items:flex-start;gap:10px;border:1px solid #ccddcc;background:#f4f8f2;padding:13px 15px;margin:20px 0}
+.addendum-linkage svg{flex:0 0 auto}
+.addendum-linkage>div{min-width:0;display:flex;flex-direction:column;gap:5px}
+.addendum-linkage strong{font-size:10px}.addendum-linkage span,.addendum-linkage small{font-size:9px;line-height:1.5;color:#687869}
+.addendum-linkage code{font-size:8px;word-break:break-all;background:#fff;padding:5px}
+.addendum-signatures{display:grid;grid-template-columns:1fr 1fr;gap:45px;margin:55px 0 35px}
+.addendum-signatures>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;min-width:0}
+.addendum-signatures span{font-size:8px;letter-spacing:.1em;color:#798478}
+.addendum-signatures i{display:block;width:100%;height:45px;border-bottom:1px solid #55685a}
+.addendum-signatures img{height:45px;max-width:210px;object-fit:contain;border-bottom:1px solid #55685a;padding-bottom:2px}
+.addendum-signatures strong{font-size:10px}.addendum-signatures small{font-size:8px;color:#788478;overflow-wrap:anywhere}
+.addendum-audit{border:1px solid #d9dfd7;background:#f8faf6;padding:13px;margin-top:16px}
+.addendum-audit header{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.addendum-audit header strong{font-size:10px}
+.addendum-audit p{display:flex;flex-direction:column;gap:4px;margin:7px 0}
+.addendum-audit span,.addendum-audit small{font-size:8px;color:#748078}
+.addendum-audit code{font-size:8px;word-break:break-all;background:#fff;padding:5px}
+.addendum-document>footer{border-top:1px solid #e0e4dd;padding-top:12px;font-size:8px;color:#7a847b;text-align:right}
+.addendum-original-note{width:min(840px,calc(100% - 28px));margin:16px auto 0;border:1px solid #cfdcce;background:#f4f8f2;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;color:#395842}
+.addendum-original-note>div{display:flex;flex-direction:column;gap:4px}.addendum-original-note strong{font-size:11px}.addendum-original-note span,.addendum-original-note a{font-size:9px;line-height:1.5}
+.public-addendum-page{min-height:100dvh;background:#ecece7;padding-bottom:40px}
+
+@media(max-width:760px){
+  .addendum-manager-head{padding:11px;align-items:flex-start}
+  .addendum-manager-head h2{font-size:19px}
+  .addendum-manager-head p{display:none}
+  .addendum-manager-head>div:last-child .btn{padding:0 9px;font-size:10px}
+  .addendum-manager-body{grid-template-columns:1fr}
+  .addendum-list{border-right:0;border-bottom:1px solid #d7ddd4;flex-direction:row;overflow-x:auto;padding:8px}
+  .addendum-list>button{min-width:220px}
+  .addendum-empty{min-width:100%;padding:18px}
+  .addendum-main{padding:6px}
+  .addendum-actions{align-items:stretch;flex-direction:column;padding:8px}
+  .addendum-actions>div:last-child{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .addendum-actions .btn{min-height:42px;white-space:normal;font-size:9px;padding:5px}
+  .addendum-actions .btn-primary:last-child{grid-column:1/-1}
+  .addendum-editor-bar{top:64px}
+  .addendum-editor-page{width:calc(100% - 10px);min-height:560px;padding:27px 16px;margin:5px auto 10px}
+  .addendum-editor-actions .btn{flex:1}
+  .addendum-document{width:calc(100% - 10px);padding:24px 15px 18px;margin:5px auto 16px}
+  .addendum-brand{flex-direction:column;text-align:center;gap:8px}
+  .addendum-brand img{width:112px;max-height:95px}
+  .addendum-reference{grid-template-columns:1fr}
+  .addendum-content h1{font-size:27px}
+  .addendum-signatures{grid-template-columns:1fr;gap:32px;margin:40px 0 26px}
+  .addendum-original-note{width:calc(100% - 12px);margin-top:7px}
+}
+
+@media print{
+  body:has(.addendum-overlay) .contract-overlay>.contract-shell{display:none!important}
+  body:has(.addendum-overlay) .addendum-manager-head,
+  body:has(.addendum-overlay) .addendum-list,
+  body:has(.addendum-overlay) .addendum-actions,
+  body:has(.addendum-overlay) .addendum-error{display:none!important}
+  body:has(.addendum-overlay) .addendum-overlay{position:static!important;inset:auto!important;background:#fff!important;overflow:visible!important}
+  body:has(.addendum-overlay) .addendum-manager-body{display:block!important}
+  body:has(.addendum-overlay) .addendum-main{padding:0!important}
+  .public-addendum-page{background:#fff!important;padding:0!important}
+  .addendum-document{width:100%!important;max-width:none!important;margin:0!important;padding:5mm 7mm!important;border:0!important;box-shadow:none!important}
+  .addendum-brand,.addendum-reference,.addendum-linkage,.addendum-signatures,.addendum-audit{break-inside:avoid-page!important}
+  .addendum-document *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
