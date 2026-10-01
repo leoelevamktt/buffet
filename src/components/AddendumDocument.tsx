@@ -31,6 +31,9 @@ export function AddendumDocument({ document, signature }: { document: RemoteDocu
         <div><span>ADENDO Nº</span><strong>{document.number}</strong></div>
         <div><span>CONTRATO ORIGINAL</span><strong>{document.originalContract.number}</strong></div>
         <div><span>CONTRATANTE</span><strong>{document.client.name}</strong></div>
+        <div><span>CPF / CNPJ</span><strong>{document.client.document || 'Não informado'}</strong></div>
+        <div><span>EVENTO</span><strong>{document.eventReference.type || 'Não informado'}</strong></div>
+        <div><span>DATA DO EVENTO</span><strong>{document.eventReference.date ? new Date(document.eventReference.date + 'T12:00:00').toLocaleDateString('pt-BR') : 'Não informada'}</strong></div>
       </section>
 
       <div className="addendum-content" dangerouslySetInnerHTML={{ __html: sanitizeAddendumHtml(document.html) }}/>
@@ -54,11 +57,10 @@ export function AddendumDocument({ document, signature }: { document: RemoteDocu
       </section>
 
       {signature?.auditHash && <section className="addendum-audit">
-        <header><FileText size={17}/><strong>Registro técnico da assinatura deste adendo</strong></header>
+        <header><FileText size={17}/><strong>Registro da assinatura deste adendo</strong></header>
         {signature.documentHash && <p><span>SHA-256 do adendo</span><code>{signature.documentHash}</code></p>}
         <p><span>SHA-256 das evidências</span><code>{signature.auditHash}</code></p>
         {signature.verificationCode && <p><span>Código de verificação</span><code>{signature.verificationCode}</code></p>}
-        <small>Registro eletrônico com evidências técnicas. Não representa certificado ICP-Brasil nem assinatura PAdES.</small>
       </section>}
 
       <footer>{document.settings.businessName} · {document.number}</footer>
