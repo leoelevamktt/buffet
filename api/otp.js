@@ -4,6 +4,7 @@ import { isCode, isEmail, normalizeEmail } from './_audit.js'
 
 const pathFor = (token) => 'sign-otp/' + token + '.json'
 const contractPath = (token) => 'contracts/' + token + '.json'
+const addendumPath = (token) => 'addenda/' + token + '.json'
 const tooMany = (record) => record && record.totalSent >= 5
 async function read(path) {
   const result = await get(path, { access: 'private', useCache: false })
@@ -22,8 +23,12 @@ export default async function handler(req, res) {
   if (!isCode(token)) return res.status(400).json({ error: 'Link inválido.' })
   try {
     const contract = await read(contractPath(token))
-    if (!contract || contract.status !== 'pending') return res.status(409).json({ error: 'Este contrato não está disponível para assinatura.' })
-    const email = normalizeEmail(contract.document?.event?.clientEmail || contract.event?.clientEmail)
+    const addendum = contract ? null : await read(addendumPath(token))
+    const record = contract || addendum
+    if (!record || record.status !== 'pending') return res.status(409).json({ error: 'Este documento não está disponível para assinatura.' })
+    const email = normalizeEmail(contract
+      ? (contract.document?.event?.clientEmail || contract.event?.clientEmail)
+      : addendum?.document?.client?.email)
     if (!isEmail(email)) return res.status(400).json({ error: 'E-mail do destinatário ausente ou inválido.' })
     const previous = await read(pathFor(token))
     const now = Date.now()
