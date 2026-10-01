@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   if (!isCode(code)) return res.status(400).json({ error: 'Código de verificação inválido.' })
   try {
     const pointer = await read('verification/' + code + '.json')
-    if (!pointer || !/^signed-archives\/[a-f0-9]{64}\/[a-f0-9]{64}\.json$/.test(pointer.archivePath))
+    if (!pointer || !/^signed(?:-addendum)?-archives\/[a-f0-9]{64}\/[a-f0-9]{64}\.json$/.test(pointer.archivePath))
       return res.status(404).json({ error: 'Registro não encontrado.' })
     const archived = await read(pointer.archivePath)
     if (!archived?.signature?.receipt) return res.status(404).json({ error: 'Registro não encontrado.' })
@@ -34,7 +34,10 @@ export default async function handler(req, res) {
       signerName: archived.signature.signerName,
       signerEmail: maskedEmail(archived.signature.signerEmail),
       emailVerified: archived.signature.emailVerification?.verified === true,
-      contractNumber: archived.document?.event?.contractNumber,
+      contractNumber: archived.document?.event?.contractNumber || archived.document?.originalContract?.number,
+      documentType: archived.document?.kind === 'contract-addendum' ? 'adendo contratual' : 'contrato',
+      documentNumber: archived.document?.kind === 'contract-addendum' ? archived.document?.number : archived.document?.event?.contractNumber,
+      originalDocumentHash: archived.document?.kind === 'contract-addendum' ? archived.document?.originalContract?.documentHash : null,
       status: integrity ? 'registro íntegro' : 'inconsistência detectada',
       timestampType: 'horário do servidor, sem carimbo do tempo certificado',
       documentFormat: 'snapshot JSON canônico; não equivale a assinatura PAdES em PDF'
