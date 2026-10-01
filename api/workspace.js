@@ -1,14 +1,14 @@
 import { database } from './_db.js'
 import { requireAdmin } from './_session.js'
 
-const keys = ['events', 'menus', 'services', 'settings', 'receipts']
+const keys = ['events', 'clients', 'menus', 'services', 'settings', 'receipts']
 const validate = (data) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false
   return keys.every((k) => k in data) &&
-    Array.isArray(data.events) && Array.isArray(data.menus) &&
+    Array.isArray(data.events) && Array.isArray(data.clients) && Array.isArray(data.menus) &&
     Array.isArray(data.services) && Array.isArray(data.receipts) &&
     data.settings !== null && typeof data.settings === 'object' && !Array.isArray(data.settings) &&
-    data.events.length <= 10000 && data.menus.length <= 1000 &&
+    data.events.length <= 10000 && data.clients.length <= 25000 && data.menus.length <= 1000 &&
     data.services.length <= 1000 && data.receipts.length <= 25000
 }
 export default async function handler(req, res) {
