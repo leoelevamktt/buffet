@@ -2191,6 +2191,7 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
   const [sharing, setSharing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [editingContract, setEditingContract] = useState(false)
+  const [managingAddenda, setManagingAddenda] = useState(false)
   const [contactPhone, setContactPhone] = useState(event.clientPhone || event.clientPhoneSecondary || '')
   const menu = menus.find((item) => item.id === event.menuId)
   const selectedServices = eventServices(event, services)
@@ -2380,6 +2381,9 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
                 <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
               </select></label>}
             <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato inteiro</button>
+            {event.contractStatus === 'Assinado' && <button className="btn btn-quiet addendum-launch" onClick={() => setManagingAddenda(true)}>
+              <FilePlus2 size={17}/> Adendos {(event.addenda?.length || 0) > 0 ? '(' + event.addenda!.length + ')' : ''}
+            </button>}
             <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos / Recibos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
@@ -2412,6 +2416,8 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
         documentHtml={document.querySelector('.contract-overlay .contract-shell .contract-document')?.outerHTML || ''}
         resetHtml={renderToStaticMarkup(<ContractDocument event={{ ...event, customContractHtml: undefined, customContractFullHtml: undefined }} menu={menu} services={selectedServices} settings={settings} total={total} templateOverride={contractTemplate} />)}
         onClose={() => setEditingContract(false)} onSave={saveCustomContract} />}
+      {managingAddenda && <AddendumManager event={event} settings={settings}
+        onClose={() => setManagingAddenda(false)} onChange={(addenda) => onUpdate({ addenda })} notify={notify} />}
     </div>
   )
 }
