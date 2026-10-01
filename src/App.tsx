@@ -2854,6 +2854,143 @@ function PublicSigningPage({ token }: { token: string }) {
   )
 }
 
+function PublicAddendumPage({ token }: { token: string }) {
+  const [addendum, setAddendum] = useState<RemoteAddendum | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [signing, setSigning] = useState(false)
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/addenda?token=' + encodeURIComponent(token), { cache: 'no-store' })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Adendo não encontrado.')
+      setAddendum(body.addendum)
+      setEmailVerificationRequired(Boolean(body.emailVerificationRequired))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar o adendo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [token])
+
+  const sign = async (signature: NonNullable<BuffetEvent['signature']>) => {
+    const response = await fetch('/api/addenda-sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        signerName: signature.signerName,
+        signerDocument: signature.signerDocument,
+        signerEmail: signature.signerEmail,
+        emailCode: signature.emailCode,
+        clientTimezone: signature.clientTimezone,
+        dataUrl: signature.dataUrl,
+        accepted: true
+      })
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body.error || 'Não foi possível registrar a assinatura do adendo.')
+    setAddendum(body.addendum)
+    setSigning(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (loading) {
+    return <div className="public-state"><div className="public-state-card"><img className="brand-emblem brand-emblem--state" src={brandMark} alt="Buffet Akela"/><strong>Carregando adendo...</strong><span>Buscando a versão segura do documento.</span></div></div>
+  }
+
+  if (error || !addendum) {
+    return <div className="public-state"><div className="public-state-card"><FileText size={34}/><strong>Não foi possível abrir este adendo</strong><span>{error || 'O link pode estar incorreto.'}</span><button className="btn btn-quiet" onClick={load}>Tentar novamente</button></div></div>
+  }
+
+  const isSigned = addendum.status === 'signed' && Boolean(addendum.signature)
+  const d = addendum.document
+  const fakeEvent: BuffetEvent = {
+    id: d.eventReference.id,
+    contractNumber: d.originalContract.number,
+    clientName: d.client.name,
+    clientDocument: d.client.document,
+    clientAddress: d.client.address || '',
+    clientEmail: d.client.email,
+    clientPhone: '',
+    eventType: d.eventReference.type || 'Adendo contratual',
+    eventDate: d.eventReference.date || new Date().toISOString().slice(0, 10),
+    startTime: '',
+    endTime: '',
+    venue: '',
+    guests: 0,
+    menuId: '',
+    serviceIds: [],
+    notes: '',
+    discount: 0,
+    deposit: 0,
+    status: 'Confirmado',
+    contractStatus: isSigned ? 'Assinado' : 'Enviado',
+    createdAt: addendum.createdAt,
+    signature: addendum.signature || undefined
+  }
+  const verificationLink = addendum.signature?.verificationCode ? '/verificar/' + addendum.signature.verificationCode : ''
+  const evidenceLink = '/api/evidence?kind=addendum&token=' + encodeURIComponent(token)
+
+  return (
+    <div className="public-addendum-page">
+      <header className="public-contract-header no-print">
+        <div className="public-brand"><img className="brand-emblem" src={brandMark} alt="Buffet Akela"/>
+          <div><strong>{d.settings.businessName}</strong><span>Adendo contratual para assinatura</span></div></div>
+        <div className="public-header-actions">
+          <span className={isSigned ? 'status status--success' : 'status status--info'}>{isSigned ? 'Adendo assinado' : 'Aguardando assinatura'}</span>
+          <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={16}/> Imprimir / PDF</button>
+        </div>
+      </header>
+
+      <div className="addendum-original-note no-print">
+        <ShieldCheck size={19}/>
+        <div><strong>Contrato original preservado</strong>
+          <span>Este documento complementa o contrato {d.originalContract.number}. A assinatura deste adendo não substitui nem reescreve a versão original.</span>
+          {d.originalContract.verificationCode && <a href={'/verificar/' + d.originalContract.verificationCode} target="_blank" rel="noreferrer">Conferir assinatura original</a>}
+        </div>
+      </div>
+
+      {isSigned ? (
+        <div className="signed-success no-print">
+          <CheckCircle2 size={22}/>
+          <div><strong>Adendo assinado e registrado</strong>
+            <span>A nova assinatura foi vinculada a esta versão do adendo e ao hash do contrato original.</span>
+            <div className="signed-success-actions">
+              {verificationLink && <a className="btn btn-quiet" href={verificationLink} target="_blank" rel="noreferrer"><ShieldCheck size={15}/> Conferir registro</a>}
+              <a className="btn btn-quiet" href={evidenceLink}><FileText size={15}/> Baixar comprovante JSON</a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="signing-intro no-print">
+          <div><span className="eyebrow">NOVA ASSINATURA NECESSÁRIA</span><strong>Olá, {d.client.name}.</strong>
+            <p>Leia o adendo completo. A assinatura abaixo registra sua concordância especificamente com estas alterações.</p></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><PenLine size={17}/> Revisar e assinar adendo</button>
+        </div>
+      )}
+
+      <AddendumDocument document={d} signature={addendum.signature}/>
+
+      {!isSigned && (
+        <div className="public-sign-sticky no-print">
+          <div><strong>Concorda com as alterações?</strong><span>Uma nova assinatura será vinculada somente a este adendo.</span></div>
+          <button className="btn btn-primary" onClick={() => setSigning(true)}><ClipboardSignature size={17}/> Assinar adendo</button>
+        </div>
+      )}
+
+      {signing && <SignatureModal event={fakeEvent} token={token} documentLabel="adendo"
+        emailVerificationRequired={emailVerificationRequired} onClose={() => setSigning(false)} onSign={sign}/>}
+    </div>
+  )
+}
+
 function PublicQuotePage({ token }: { token: string }) {
   const [quote, setQuote] = useState<RemoteQuote | null>(null)
   const [loading, setLoading] = useState(true)
@@ -2915,10 +3052,12 @@ function PublicQuotePage({ token }: { token: string }) {
 
 function App() {
   const signingMatch = window.location.pathname.match(/^\/assinar\/([^/]+)$/)
+  const addendumMatch = window.location.pathname.match(/^\/adendo\/([^/]+)$/)
   const quoteMatch = window.location.pathname.match(/^\/orcamento\/([^/]+)$/)
   const verificationMatch = window.location.pathname.match(/^\/verificar\/([^/]+)$/)
   if (verificationMatch) return <VerificationPage code={verificationMatch[1]} />
   if (signingMatch) return <PublicSigningPage token={signingMatch[1]} />
+  if (addendumMatch) return <PublicAddendumPage token={addendumMatch[1]} />
   if (quoteMatch) return <PublicQuotePage token={quoteMatch[1]} />
   return <WorkspaceGate>{(data, revision, user, logout) => <AdminApp initialWorkspace={data} initialRevision={revision} currentUser={user} onLogout={logout} />}</WorkspaceGate>
 }
