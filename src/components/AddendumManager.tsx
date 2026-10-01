@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, Bold, Check, Copy, FilePlus2, FileText, Italic, List, ListOrdered, PenLine, Printer, Send, ShieldCheck, Underline, X } from 'lucide-react'
-import { newAddendum, sanitizeAddendumHtml } from '../addenda'
+import { defaultAddendumHtml, newAddendum, sanitizeAddendumHtml } from '../addenda'
 import type { BuffetEvent, BusinessSettings, ContractAddendum } from '../types'
 import { phoneDigits } from '../utils'
 import { AddendumDocument } from './AddendumDocument'
@@ -265,6 +265,15 @@ export function AddendumManager({ event, settings, onChange, onClose, notify }: 
                 <select defaultValue="P" onChange={(e)=>command('formatBlock',e.target.value)}>
                   <option value="P">Texto</option><option value="H1">Título 1</option><option value="H2">Título 2</option><option value="H3">Título 3</option>
                 </select>
+                <button className="addendum-template-button" type="button" title="Aplicar modelo profissional completo"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    if (!selected) return
+                    if (!window.confirm('Substituir o conteúdo atual pelo modelo profissional completo? As alterações ainda não salvas serão perdidas.')) return
+                    const html = defaultAddendumHtml(event, settings, selected.number)
+                    setDraftHtml(html)
+                    window.setTimeout(() => { if (editorRef.current) editorRef.current.innerHTML = sanitizeAddendumHtml(html) }, 0)
+                  }}><FilePlus2 size={15}/> Modelo profissional</button>
               </div>
               <label className="addendum-title-field">Título do documento
                 <input value={draftTitle} onChange={(e)=>setDraftTitle(e.target.value)} maxLength={180}/></label>
