@@ -2609,12 +2609,13 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
   )
 }
 
-function SignatureModal({ event, onClose, onSign, token, emailVerificationRequired }: {
+function SignatureModal({ event, onClose, onSign, token, emailVerificationRequired, documentLabel = 'contrato' }: {
   event: BuffetEvent
   onClose: () => void
   onSign: (signature: NonNullable<BuffetEvent['signature']>) => Promise<void> | void
   token: string
   emailVerificationRequired: boolean
+  documentLabel?: 'contrato' | 'adendo'
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [name, setName] = useState(event.clientName)
@@ -2663,7 +2664,7 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
     setError('')
     try {
       if (email.trim().toLowerCase() !== (event.clientEmail || '').trim().toLowerCase())
-        throw new Error('Informe o mesmo e-mail que consta no contrato.')
+        throw new Error('Informe o mesmo e-mail que consta no ' + documentLabel + '.')
       const response = await fetch('/api/otp', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
@@ -2710,13 +2711,13 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
         <button className="modal-close" onClick={onClose} disabled={submitting}><X size={20} /></button>
         <div className="signature-icon"><PenLine size={22} /></div>
         <span className="eyebrow">ASSINATURA ELETRÔNICA</span><h2>Confirme o aceite.</h2>
-        <p className="lead">Confira seus dados e leia o contrato antes de assinar. O sistema registra a versão do documento e as evidências técnicas do aceite.</p>
+        <p className="lead">Confira seus dados e leia o {documentLabel} antes de assinar. O sistema registra a versão do documento e as evidências técnicas do aceite.</p>
         <div className="form-grid two signature-identity-grid">
           <Field label="Nome completo *" value={name} onChange={setName} />
           <Field label="CPF / CNPJ *" value={document} onChange={setDocument} />
           <div className="field span-2"><label>E-mail do signatário *</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@email.com" autoComplete="email" />
-            <small>O endereço deve corresponder ao informado no contrato.</small>
+            <small>O endereço deve corresponder ao informado no {documentLabel}.</small>
           </div>
         </div>
         {emailVerificationRequired ? (
@@ -2735,9 +2736,9 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
         )}
         <div className="signature-pad-head"><label>Assinatura *</label><button onClick={clear} disabled={submitting}>Limpar</button></div>
         <canvas ref={canvasRef} width={800} height={220} className="signature-pad" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onPointerLeave={stop} />
-        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do contrato, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
+        <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do {documentLabel}, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
         {error && <div className="signature-error">{error}</div>}
-        <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir contrato'}</button>
+        <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir ' + documentLabel}</button>
         <small className="legal-note">Será gerado um código único de conferência, SHA-256 da versão do documento, hash do recibo e selo de auditoria do servidor. Isso não é certificado ICP-Brasil nem assinatura digital PAdES.</small>
       </div>
     </div>
