@@ -1347,7 +1347,25 @@ td strong{font-size:11px}
 
 
 /* Adendos contratuais: documento independente, editável antes da nova assinatura */
-.addendum-launch{border-color:#cdbb93;background:#faf6ec}
+.contract-toolbar .addendum-launch{
+  border-color:#d7c39a;
+  background:#f6efdf;
+  color:#213126;
+  opacity:1
+}
+.contract-toolbar .addendum-launch svg{color:currentColor}
+.contract-toolbar .addendum-launch:hover:not(:disabled),
+.contract-toolbar .addendum-launch:focus-visible{
+  background:#eadbbd;
+  border-color:#c8a96b;
+  color:#18241c
+}
+.contract-toolbar .addendum-launch:disabled{
+  background:#eee8da;
+  border-color:#d8ccb3;
+  color:#667066;
+  opacity:1
+}
 .addendum-overlay{position:fixed;inset:0;z-index:310;background:#e8e8e2;overflow:auto}
 .addendum-shell{min-height:100dvh;display:flex;flex-direction:column}
 .addendum-manager-head{position:sticky;top:0;z-index:5;background:#1b2a21;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 24px;box-shadow:0 4px 16px #10201524}
