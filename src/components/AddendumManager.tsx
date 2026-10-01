@@ -112,6 +112,15 @@ export function AddendumManager({ event, settings, onChange, onClose, notify }: 
       setError('O vínculo com o contrato assinado original não está disponível.')
       return ''
     }
+    const text = new DOMParser().parseFromString(item.html, 'text/html').body.textContent?.toLowerCase() || ''
+    const draftMarkers = ['preencher se houver alteração', 'descrever inclusões', 'informar novo valor', 'inserir a nova redação', 'substitua este texto', 'descreva itens incluídos', 'informe se haverá']
+    if (draftMarkers.some((marker) => text.includes(marker))) {
+      const proceed = window.confirm('O adendo ainda contém textos de orientação do modelo. Revise o conteúdo antes de enviar. Deseja gerar o link mesmo assim?')
+      if (!proceed) {
+        setError('Revise os trechos de orientação e remova o que não fizer parte do acordo antes do envio.')
+        return ''
+      }
+    }
     setBusy(true); setError('')
     try {
       const response = await fetch('/api/addenda', {
