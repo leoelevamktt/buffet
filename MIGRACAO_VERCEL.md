@@ -1,6 +1,6 @@
 # Buffet Akela — migração entre contas Vercel
 
-Atualização: 03/10/2026. **Os dados e os documentos foram migrados e auditados; a conferência do acesso administrativo e o vínculo GitHub ainda dependem da autorização do titular.**
+Atualização: 03/10/2026. **Dados e documentos migrados e auditados; a implantação automática pelo GitHub já funciona. Falta apenas o titular confirmar seu acesso com a senha administrativa atual.**
 
 ## Conta e ambiente de destino
 
@@ -9,7 +9,7 @@ Atualização: 03/10/2026. **Os dados e os documentos foram migrados e auditados
 - Novo Blob privado: `buffet-akela-contracts`, ID `store_zsZCiqzKrZiUW4pb`, região `iad1`.
 - URL principal: <https://buffetakela.vercel.app>.
 - Alias adicional: <https://buffet-akela.vercel.app>.
-- Código publicado: commit `e9bff5c` da branch `main`.
+- Código em produção: branch `main`, com implantação automática verificada no commit `cc71521`.
 - PostgreSQL: banco Neon original mantido, **sem recriar tabelas ou sobrescrever registros**.
 
 O antigo hostname `buffet-kappa-teal.vercel.app` retorna 404. Nenhum dos eventos ativos presentes no backup utiliza esse hostname; todos apontam para `buffetakela.vercel.app`, que já está na nova conta.
@@ -33,7 +33,7 @@ Foram transferidos e conferidos por SHA-256 todos os 29 arquivos originais, pres
 - 5 arquivos imutáveis de assinaturas;
 - 5 índices de verificação.
 
-O Blob da nova conta também preserva **oito cópias anteriores recuperadas** em `migration-recovered/`, totalizando **37 objetos** no novo armazenamento. A validação final comprovou 29/29 arquivos originais com conteúdo idêntico ao backup.
+O Blob da nova conta também preserva **oito cópias anteriores recuperadas** em `migration-recovered/`, totalizando **37 objetos** no novo armazenamento. A validação final, repetida após a implantação automática, comprovou **29/29 arquivos originais byte a byte idênticos ao backup**, além dos oito objetos históricos recuperados.
 
 Cinco contratos assinados, incluindo os quatro atualmente vinculados aos eventos ativos, possuem integridade SHA-256 e selo HMAC válidos. Quatro registros históricos adicionais estavam marcados como assinados no armazenamento original, mas não possuem recibo criptográfico moderno verificável. Foram preservados integralmente, sem atribuir validade técnica inexistente.
 
@@ -61,11 +61,17 @@ Os dados foram copiados para backup local antes de qualquer operação sensível
 
 A versão publicada inclui o editor profissional de adendos em nove seções, o botão Adendos com contraste corrigido e a retirada da frase solicitada do documento visual.
 
+## Implantação automática do GitHub
+
+A conta de destino não precisa mais da conexão OAuth para receber publicações: foi configurado o workflow `.github/workflows/deploy.yml`, acionado a cada `push` na branch `main` e também manualmente. O token de implantação fica criptografado no segredo `VERCEL_TOKEN` do repositório, nunca no código; identificadores da equipe/projeto estão nas variáveis de CI. O workflow compila, executa testes, baixa as configurações de produção, publica na nova conta e verifica o domínio e o bloqueio das APIs privadas.
+
+A execução [37135572544](https://github.com/leoelevamktt/buffet/actions/runs/37135572544) terminou com **sucesso**, incluindo a publicação na nova conta e o teste público final. A integração OAuth nativa do GitHub com a nova Vercel só será necessária se o titular desejar prévias automáticas por pull request ou os recursos nativos dessa integração.
+
 ## Pendências para encerrar a migração operacional
 
-**1. Login administrativo.** A senha encontrada no arquivo local de acesso anterior e no ambiente antigo não coincide com o hash atualmente salvo no Neon para `admin`. O usuário original e seu hash foram preservados. Não houve redefinição automática de senha. O titular deve usar a senha correta que já possui ou autorizar explicitamente uma redefinição e confirmar o método adequado. Os testes autenticados do novo domínio dependem disso.
+**1. Confirmação do acesso administrativo.** A senha encontrada no arquivo local antigo não coincide com o hash atualmente salvo no Neon para `admin`; isso é compatível com uma troca de senha posterior pelo próprio titular. O usuário original, seu hash e suas sessões foram preservados. Por segurança não houve redefinição automática. O titular precisa confirmar que consegue entrar com sua senha atual no novo endereço. Se não a possuir, será necessário autorizar e executar uma recuperação de acesso apropriada. Os testes autenticados completos no novo domínio dependem disso.
 
-**2. GitHub / deploy automático.** A nova conta Vercel não possui conexão OAuth com a conta GitHub `leoelevamktt`. A tentativa de vincular `leoelevamktt/buffet` retornou a exigência de criar primeiro uma Login Connection com o GitHub. Para autorizar, entrar na **nova** conta Vercel e conectar GitHub nas configurações de Login Connections. Enquanto isso, as implantações manuais pela CLI na máquina autorizada funcionam; mudanças no GitHub **não** são automaticamente publicadas.
+**2. Integração GitHub opcional.** O deploy automático já está funcionando por GitHub Actions, sem OAuth nativo da Vercel. Para ter prévias automáticas por PR e demais recursos GitHub/Vercel, o titular pode conectar sua conta GitHub às Login Connections da nova Vercel.
 
 **3. Credenciais compartilhadas.** Após confirmar o acesso e as integrações, rotacionar o token temporário da nova conta Vercel e a credencial do Blob antigo disponibilizados na conversa. Não apagar o Blob anterior antes de concluir a retenção histórica desejada.
 
