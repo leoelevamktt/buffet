@@ -1,0 +1,83 @@
+name: Deploy Buffet Akela (nova Vercel)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buffet-akela-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar e executar testes locais
+        run: |
+          npm run build
+          node --test scripts/audit-evidence.test.mjs scripts/receipts.test.mjs
+
+      - name: Instalar CLI da Vercel
+        run: npm install --global vercel@58.9.4
+
+      - name: Verificar configuracao protegida
+        shell: bash
+        run: |
+          test -n "$VERCEL_TOKEN"
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+
+      - name: Baixar configuracoes da conta de destino
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Compilar no ambiente de producao
+        run: vercel build --prod --token "$VERCEL_TOKEN"
+
+      - name: Implantar na nova conta
+        run: vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+
+      - name: Verificar homepage e bloqueio de dados privados
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base = 'https://buffetakela.vercel.app'
+          async function check() {
+            const home = await fetch(base, { cache: 'no-store' })
+            const session = await fetch(base + '/api/session', { cache: 'no-store' })
+            const workspace = await fetch(base + '/api/workspace', { cache: 'no-store' })
+            if (home.status !== 200 || session.status !== 200 || workspace.status !== 401) {
+              throw Error('Production smoke check: ' + JSON.stringify({
+                home: home.status, session: session.status, workspace: workspace.status
+              }))
+            }
+            console.log('PRODUCTION_SMOKE_PASS')
+          }
+          let last
+          for (let attempt = 0; attempt < 8; attempt++) {
+            try { await check(); process.exit(0) }
+            catch (error) { last = error; await new Promise(r => setTimeout(r, 5000)) }
+          }
+          throw last
+          NODE
