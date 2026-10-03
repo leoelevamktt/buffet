@@ -1,6 +1,6 @@
 # Buffet Akela — migração entre contas Vercel
 
-Atualização: 03/10/2026. **Dados e documentos migrados e auditados; a implantação automática pelo GitHub já funciona. Falta apenas o titular confirmar seu acesso com a senha administrativa atual.**
+Atualização: 03/10/2026. **Migração operacional concluída e auditada; acesso administrativo confirmado pelo titular e pelo login registrado no Neon. Os arquivos privados, o domínio e a implantação automática foram verificados na nova conta.**
 
 ## Conta e ambiente de destino
 
@@ -9,7 +9,7 @@ Atualização: 03/10/2026. **Dados e documentos migrados e auditados; a implanta
 - Novo Blob privado: `buffet-akela-contracts`, ID `store_zsZCiqzKrZiUW4pb`, região `iad1`.
 - URL principal: <https://buffetakela.vercel.app>.
 - Alias adicional: <https://buffet-akela.vercel.app>.
-- Código em produção: branch `main`, com implantação automática verificada no commit `cc71521`.
+- Código em produção: branch `main`, com implantação automática do GitHub validada no commit `341e4a5` e verificações repetidas após a migração.
 - PostgreSQL: banco Neon original mantido, **sem recriar tabelas ou sobrescrever registros**.
 
 O antigo hostname `buffet-kappa-teal.vercel.app` retorna 404. Nenhum dos eventos ativos presentes no backup utiliza esse hostname; todos apontam para `buffetakela.vercel.app`, que já está na nova conta.
@@ -65,14 +65,14 @@ A versão publicada inclui o editor profissional de adendos em nove seções, o 
 
 A conta de destino não precisa mais da conexão OAuth para receber publicações: foi configurado o workflow `.github/workflows/deploy.yml`, acionado a cada `push` na branch `main` e também manualmente. O token de implantação fica criptografado no segredo `VERCEL_TOKEN` do repositório, nunca no código; identificadores da equipe/projeto estão nas variáveis de CI. O workflow compila, executa testes, baixa as configurações de produção, publica na nova conta e verifica o domínio e o bloqueio das APIs privadas.
 
-A execução [37135572544](https://github.com/leoelevamktt/buffet/actions/runs/37135572544) terminou com **sucesso**, incluindo a publicação na nova conta e o teste público final. A integração OAuth nativa do GitHub com a nova Vercel só será necessária se o titular desejar prévias automáticas por pull request ou os recursos nativos dessa integração.
+As execuções [37135572544](https://github.com/leoelevamktt/buffet/actions/runs/37135572544) e [37135821691](https://github.com/leoelevamktt/buffet/actions/runs/37135821691) terminaram com **sucesso**, incluindo o commit atual da migração, a publicação na nova conta e os testes públicos finais. A integração OAuth nativa do GitHub com a nova Vercel só será necessária se o titular desejar prévias automáticas por pull request ou os recursos nativos dessa integração.
 
-## Pendências para encerrar a migração operacional
+## Acesso confirmado e manutenção pós-migração
 
-**1. Confirmação do acesso administrativo.** A senha encontrada no arquivo local antigo não coincide com o hash atualmente salvo no Neon para `admin`; isso é compatível com uma troca de senha posterior pelo próprio titular. O usuário original, seu hash e suas sessões foram preservados. Por segurança não houve redefinição automática. O titular precisa confirmar que consegue entrar com sua senha atual no novo endereço. Se não a possuir, será necessário autorizar e executar uma recuperação de acesso apropriada. Os testes autenticados completos no novo domínio dependem disso.
+**1. Acesso administrativo confirmado.** O titular confirmou que conseguiu entrar no novo endereço. O Neon registrou login do administrador em 03/10/2026, às 16:13 UTC, com sessão ativa. O usuário e seu hash foram preservados; nenhuma redefinição automática foi necessária. Os endpoints públicos e a proteção das rotas privadas também foram verificados.
 
 **2. Integração GitHub opcional.** O deploy automático já está funcionando por GitHub Actions, sem OAuth nativo da Vercel. Para ter prévias automáticas por PR e demais recursos GitHub/Vercel, o titular pode conectar sua conta GitHub às Login Connections da nova Vercel.
 
-**3. Credenciais compartilhadas.** Após confirmar o acesso e as integrações, rotacionar o token temporário da nova conta Vercel e a credencial do Blob antigo disponibilizados na conversa. Não apagar o Blob anterior antes de concluir a retenção histórica desejada.
+**3. Rotação de credenciais expostas (recomendada).** O token temporário da nova conta Vercel e a credencial do Blob antigo foram compartilhados durante a migração. A ferramenta bloqueou a substituição automática do token. Para não interromper o CI, crie primeiro um novo token na Vercel, atualize `VERCEL_TOKEN` em GitHub Actions, valide um deploy e só então revogue o antigo. Rotacione também credenciais antigas expostas quando nenhum outro projeto depender delas. Não apague o Blob anterior sem uma política de retenção definida.
 
 Não inserir credenciais nem URLs privadas de assinatura em commits, issues ou logs públicos.

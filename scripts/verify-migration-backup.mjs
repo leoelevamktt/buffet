@@ -10,7 +10,7 @@ if(!name) throw Error('No migration backup')
 const root = path.isAbsolute(name) ? name : path.join(parent,name)
 const readJson = name => JSON.parse(fs.readFileSync(path.join(root,name),'utf8'))
 const env = fs.readFileSync('.env.local','utf8')
-const envValue = key => env.match(new RegExp('^'+key+'=(.+)$','m'))?.[1]?.trim()
+const envValue = key => env.match(new RegExp('^'+key+'=(.+)$','m'))?.[1]?.trim()?.replace(/^["']|["']$/g,'')
 const auditKey = envValue('SIGNATURE_AUDIT_SECRET')
 if(!auditKey||auditKey.length<32)throw Error('Audit key unavailable')
 const manifest = readJson('recovery-manifest.json')
@@ -49,12 +49,15 @@ for(const event of signed){
   throw Error('Archive mismatch')
  verified++
 }
+const originalManifestPath=path.join(parent,'original-blob-backup-2026-10-03','original-blob-manifest.json')
+const originalManifest=fs.existsSync(originalManifestPath) ? JSON.parse(fs.readFileSync(originalManifestPath,'utf8')) : null
+if(originalManifest?.files?.length!==29)throw Error('Original 29-file backup manifest unavailable')
 const extras=events.flatMap(e=>e.addenda||[])
 const risk={verifiedSigned:verified,validatedFiles:files.length,
  clientCount:row.data.clients?.length||0,receiptCount:row.data.receipts?.length||0,
  eventCount:events.length,unsignedAddenda:extras.filter(a=>a.status!=='Assinado').length,
  signedAddenda:extras.filter(a=>a.status==='Assinado').length,
- oldPrivateBlobUnavailable:true,originalInvitationMetadataNotRecoverableFromNeon:true}
+ originalPrivateBlobBackupCount:originalManifest.files.length,originalInvitationMetadataAvailableInOriginalBackup:true}
 const uri=new URL(envValue('DATABASE_URL'))
 uri.searchParams.set('sslmode','verify-full')
 const database=new pg.Client({connectionString:uri.toString(),ssl:{rejectUnauthorized:true},connectionTimeoutMillis:10000})
