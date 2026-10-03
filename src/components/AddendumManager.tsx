@@ -108,6 +108,11 @@ export function AddendumManager({ event, settings, onChange, onClose, notify }: 
   const generateLink = async (item: ContractAddendum) => {
     if (item.status === 'Assinado') return item.shareUrl || ''
     if (item.shareUrl && item.shareToken) return item.shareUrl
+    const draftText = new DOMParser().parseFromString(item.html, 'text/html').body.textContent || ''
+    if (/preencher se houver alteração|substitua este texto|remova instruções internas|descrever inclusões, exclusões|informe se haverá acréscimo/i.test(draftText)) {
+      setError('Revise o adendo antes de enviar. Ainda existem instruções ou exemplos no documento: personalize as cláusulas e exclua os itens não aplicáveis.')
+      return ''
+    }
     if (!item.originalContractToken) {
       setError('O vínculo com o contrato assinado original não está disponível.')
       return ''

@@ -2738,7 +2738,7 @@ function SignatureModal({ event, onClose, onSign, token, emailVerificationRequir
         <label className="accept-row"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={submitting} /><span>Confirmo que li integralmente esta versão do {documentLabel}, concordo com seus termos e autorizo o registro das evidências técnicas da assinatura (data e hora do servidor, IP informado pela infraestrutura, navegador, e-mail declarado ou confirmado e hashes de integridade).</span></label>
         {error && <div className="signature-error">{error}</div>}
         <button className="btn btn-primary full" disabled={!accepted || name.trim().length < 4 || ![11, 14].includes(document.replace(/\D/g, '').length) || !email.includes('@') || (emailVerificationRequired && !/^\d{6}$/.test(emailCode)) || !hasDrawn || submitting} onClick={submit}><ClipboardSignature size={17} /> {submitting ? 'Registrando assinatura...' : 'Assinar e concluir ' + documentLabel}</button>
-        <small className="legal-note">Será gerado um código único de conferência, SHA-256 da versão do documento, hash do recibo e selo de auditoria do servidor. Isso não é certificado ICP-Brasil nem assinatura digital PAdES.</small>
+        <small className="legal-note">Ao concluir, você recebe um código de verificação e o registro técnico da assinatura, incluindo os hashes de integridade do documento e do comprovante.</small>
       </div>
     </div>
   )
