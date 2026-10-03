@@ -246,6 +246,9 @@ export interface BuffetEvent {
   quoteToken?: string
   quoteUrl?: string
   quoteSharedAt?: string
+  contractArchivedAt?: string
+  contractArchivedBy?: string
+  contractArchivedReason?: string
   addenda?: ContractAddendum[]
 }
 

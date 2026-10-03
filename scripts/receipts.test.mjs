@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { amountInWordsBR, createReceipt, nextReceiptNumber, activeReceiptForPayment, receiptMatchesPayment } from '../src/receipts.ts'
+import { amountInWordsBR, createReceipt, nextReceiptNumber, activeReceiptForPayment, receiptMatchesPayment, reviseReceipt, archiveReceipt } from '../src/receipts.ts'
 
 const event = {
  id:'event-123', contractNumber:'CTR-2026-003', clientName:'Cliente Exemplo', clientDocument:'12345678909',
@@ -50,4 +50,33 @@ test('valor por extenso brasileiro',()=>{
  assert.equal(amountInWordsBR(0.01),'um centavo')
  assert.equal(amountInWordsBR(1000),'mil reais')
  assert.equal(amountInWordsBR(100),'cem reais')
+})
+
+test('edição preserva trilha e dados anteriores', () => {
+ const receipt = createReceipt([], event, payment, business, 'Entrada confirmada.', at)
+ const updated = reviseReceipt(receipt, {
+  issuer: {...receipt.issuer}, payer: {...receipt.payer,name:'Cliente Retificado'},
+  event: {...receipt.event}, payment: {...receipt.payment,amount:650,method:'Cartão'},
+  description:'Entrada revisada após conferência.'
+ }, 'Conferência do extrato bancário', 'Administrador', new Date('2026-09-26T12:00:00Z'))
+ assert.equal(receipt.payment.amount,600)
+ assert.equal(updated.payment.amount,650)
+ assert.equal(updated.revisions.length,1)
+ assert.equal(updated.revisions[0].previous.payment.amount,600)
+ assert.equal(updated.revisions[0].previous.payer.name,'Cliente Exemplo')
+ assert.equal(updated.updatedBy,'Administrador')
+ assert.throws(() => reviseReceipt(receipt, {
+  issuer:receipt.issuer,payer:receipt.payer,event:receipt.event,
+  payment:receipt.payment,description:receipt.description
+ }, 'abc', 'Administrador'), /motivo/i)
+})
+test('exclusão preserva o histórico e a sequência dos recibos', () => {
+ const receipt = createReceipt([], event, payment, business, 'Sinal recebido.', at)
+ const deleted = archiveReceipt(receipt,'Substituído após correção','Administrador',
+  new Date('2026-09-27T12:00:00Z'))
+ assert.equal(deleted.status,'deleted')
+ assert.equal(deleted.payment.amount,600)
+ assert.equal(activeReceiptForPayment([deleted],event.id,payment.id),undefined)
+ assert.equal(nextReceiptNumber([deleted],at),'REC-2026-0002')
+ assert.throws(() => archiveReceipt(deleted,'Outro motivo','Administrador'), /excluído/i)
 })

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, FileCheck2, FileText, ReceiptText, Search } from 'lucide-react'
+import { ArrowRight, FileCheck2, FileText, ReceiptText, Search, Trash2 } from 'lucide-react'
 import type { BuffetEvent } from '../types'
 import type { PaymentReceipt } from '../receipts'
 import { dateBR, money } from '../utils'
@@ -10,15 +10,16 @@ interface Props {
   onPreview: (id: string) => void
   onOpenPayments: (eventId: string) => void
   onGoEvents: () => void
+  onDelete: (receipt: PaymentReceipt) => void
 }
 
-export function ReceiptsView({ receipts, events, onPreview, onOpenPayments, onGoEvents }: Props) {
+export function ReceiptsView({ receipts, events, onPreview, onOpenPayments, onGoEvents, onDelete }: Props) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<'all' | 'issued' | 'cancelled'>('all')
+  const [filter, setFilter] = useState<'all' | 'issued' | 'cancelled' | 'deleted'>('all')
   const active = receipts.filter((item) => item.status === 'issued')
   const total = active.reduce((sum, item) => sum + item.payment.amount, 0)
   const rows = useMemo(() => receipts
-    .filter((item) => filter === 'all' || item.status === filter)
+    .filter((item) => filter === 'all' ? item.status !== 'deleted' : item.status === filter)
     .filter((item) => {
       const text = [item.number,item.payer.name,item.event.contractNumber,item.payment.method,item.description]
         .join(' ').toLocaleLowerCase('pt-BR')
@@ -52,7 +53,7 @@ export function ReceiptsView({ receipts, events, onPreview, onOpenPayments, onGo
           <div className="filter-search"><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar número, cliente, contrato..." aria-label="Buscar recibos"/></div>
           <div className="receipt-tabs">
-            {([['all','Todos'],['issued','Ativos'],['cancelled','Cancelados']] as const).map(([id,label])=>
+            {([['all','Todos'],['issued','Ativos'],['cancelled','Cancelados'],['deleted','Excluídos']] as const).map(([id,label])=>
               <button key={id} className={filter===id?'active':''} onClick={()=>setFilter(id)}>{label}</button>)}
           </div>
         </div>
@@ -62,17 +63,22 @@ export function ReceiptsView({ receipts, events, onPreview, onOpenPayments, onGo
           <button className="btn btn-quiet" onClick={onGoEvents}>Ver eventos <ArrowRight size={15}/></button>
         </div> : <div className="receipt-results">
           {rows.map((receipt)=>
-            <button className="receipt-result" key={receipt.id} onClick={()=>onPreview(receipt.id)}>
+            <div className="receipt-result-wrap" key={receipt.id}>
+            <button className="receipt-result" onClick={()=>onPreview(receipt.id)}>
               <div className="receipt-result-icon"><ReceiptText size={21}/></div>
               <div className="receipt-result-person"><strong>{receipt.payer.name}</strong>
                 <small>{receipt.number} · {receipt.event.contractNumber} · Pago em {dateBR(receipt.payment.date)}</small></div>
               <div className="receipt-result-amount"><strong>{money(receipt.payment.amount)}</strong>
-                <span className={'receipt-state '+(receipt.status==='issued'?'issued':'cancelled')}>{receipt.status==='issued'?'Emitido':'Cancelado'}</span></div>
+                <span className={'receipt-state '+(receipt.status==='issued'?'issued':'cancelled')}>
+                  {receipt.status==='issued'?'Emitido':receipt.status==='deleted'?'Excluído':'Cancelado'}</span></div>
               <ArrowRight size={17}/>
-            </button>)}
+            </button>
+            {receipt.status !== 'deleted' && <button className="receipt-row-delete" title="Excluir recibo"
+              onClick={() => onDelete(receipt)}><Trash2 size={17}/></button>}
+            </div>)}
         </div>}
       </section>
-      <p className="receipt-storage-notice">Os recibos ficam armazenados neste navegador. Guarde os PDFs emitidos e mantenha um backup dos dados administrativos.</p>
+      <p className="receipt-storage-notice">Recibos e histórico de alterações sincronizados no Neon. O financeiro mantém os pagamentos mesmo após excluir um recibo.</p>
     </div>
   )
 }
