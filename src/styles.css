@@ -1540,3 +1540,102 @@ td strong{font-size:11px}
   .addendum-content thead th{background:#263a2d!important;color:#fff!important}
   .addendum-template-button{display:none!important}
 }
+
+/* Histórico de contratos e recibos; controles administrativos responsivos */
+.contract-list-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.contract-list-tabs button{border:1px solid #d9ded5;background:#fff;color:#5d6e60;padding:9px 13px;font-size:10px;min-height:40px}
+.contract-list-tabs button.active{background:#263c2b;color:#fff;border-color:#263c2b}
+.contract-list-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-bottom:1px solid var(--line)}
+.contract-list-item .contract-card{border-bottom:0;min-width:0}
+.contract-list-controls{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.contract-list-delete,.contract-toolbar-delete{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #e5c9c4;background:#fff6f4;color:#a25147!important;min-height:42px;padding:8px 12px;font-size:10px;font-weight:700;cursor:pointer}
+.contract-toolbar .contract-toolbar-delete:hover,.contract-list-delete:hover{background:#f6e7e4!important;color:#8c3b34!important}
+.contract-toolbar .contract-toolbar-delete{background:#f9ede7!important;border-color:#c89e96!important}
+.contract-empty{padding:32px;text-align:center;font-size:12px;color:#849188}
+.receipt-result-wrap{display:grid;grid-template-columns:minmax(0,1fr) 42px;gap:5px;align-items:center;border-bottom:1px solid #e5e9e2}
+.receipt-result-wrap .receipt-result{border-bottom:0}
+.receipt-row-delete{width:40px;height:42px;display:grid;place-items:center;background:#fff7f5;border:1px solid #efd5cf;color:#9f5149;cursor:pointer}
+.receipt-row-delete:hover{background:#f6e6e2}
+.receipt-topbar{position:sticky}
+.receipt-topbar-actions{flex:1;justify-content:flex-end}
+.receipt-topbar-actions .btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.receipt-bottom-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.receipt-delete-btn{min-height:42px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #e8c7c1;background:#fff4f2;color:#9c4b43;padding:8px 12px;cursor:pointer}
+.receipt-file-feedback{display:block;font-size:10px;line-height:1.5;color:#3f784c;margin:7px 0 0}
+.receipt-editor-overlay{position:fixed;inset:0;z-index:400;background:#15241ccc;overflow:auto;padding:24px 12px;display:flex;justify-content:center;align-items:flex-start}
+.receipt-editor-modal{background:#fff;width:min(870px,100%);max-height:calc(100dvh - 48px);overflow:auto;box-shadow:0 22px 80px #121e1455;display:flex;flex-direction:column;min-width:0}
+.receipt-editor-head{padding:23px 26px;background:#23362a;color:#fff;display:flex;justify-content:space-between;gap:16px}
+.receipt-editor-head h2{font:400 26px Georgia,serif;margin:5px 0}
+.receipt-editor-head p{font-size:11px;line-height:1.5;color:#c6d2c5;margin:5px 0 0}
+.receipt-editor-close{height:42px;min-width:42px;display:grid;place-items:center;background:transparent;border:1px solid #7b9280;color:#fff;cursor:pointer}
+.receipt-editor-content{overflow:auto;padding:20px 26px;min-height:0}
+.receipt-editor-content>section{padding-bottom:21px;margin-bottom:20px;border-bottom:1px solid #e4e9e1}
+.receipt-editor-content h3{font:400 20px Georgia,serif;margin:0 0 15px;color:#27412d}
+.receipt-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.receipt-editor-wide{grid-column:1/-1}
+.receipt-editor-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.receipt-editor-field span{font-size:10px;color:#536454;font-weight:700}
+.receipt-editor-field input,.receipt-editor-field textarea{font:12px/1.5 inherit;width:100%;min-height:43px;background:#fff;border:1px solid #cdd9cb;padding:10px 12px;color:#23372b;resize:vertical;box-sizing:border-box}
+.receipt-revision-toggle{display:flex;gap:9px;align-items:center;border:0;background:#eef3ec;padding:11px 13px;color:#2d5539;width:100%;font-size:11px;text-align:left;font-weight:750;cursor:pointer}
+.receipt-revision-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.receipt-revision-list>div{border:1px solid #e1e5df;background:#fafbf8;padding:10px}
+.receipt-revision-list strong{font-size:10px}.receipt-revision-list p,.receipt-revision-list small{display:block;font-size:10px;line-height:1.5;color:#738074;margin:5px 0}
+.receipt-reason-box{border:1px solid #d9e2d8;background:#f7faf5;padding:13px;display:flex;align-items:flex-start;gap:11px}
+.receipt-reason-box>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:7px}
+.receipt-reason-box strong{font-size:11px}
+.receipt-reason-box textarea{font-size:12px;line-height:1.45;resize:vertical;width:100%;border:1px solid #cbd7ca;padding:9px;min-height:75px}
+.receipt-reason-box small{font-size:9px;color:#778579}
+.receipt-editor-error{font-size:11px;padding:11px 13px;background:#fff2ee;color:#a34e42;border:1px solid #e2bdb5}
+.receipt-editor-actions{padding:15px 24px;background:#f8faf6;display:flex;justify-content:flex-end;gap:9px;border-top:1px solid #e0e7df}
+@media(max-width:760px){
+  .contract-list-item{grid-template-columns:1fr}
+  .contract-list-controls{justify-content:flex-end;border-top:1px solid #eceee7}
+  .contract-list-tabs{width:100%;margin-top:9px}
+  .contract-list-tabs button{flex:1}
+  .contract-list-item .contract-card{grid-template-columns:35px minmax(0,1fr) auto;gap:8px}
+  .contract-list-item .contract-arrow{display:none}
+  .receipt-topbar-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px}
+  .receipt-topbar-actions .btn{font-size:10px;white-space:normal;min-height:43px}
+  .receipt-bottom-actions{width:100%;justify-content:stretch}
+  .receipt-bottom-actions .btn,.receipt-bottom-actions>button{flex:1;white-space:normal}
+  .receipt-editor-overlay{padding:5px;align-items:flex-start}
+  .receipt-editor-modal{max-height:calc(100dvh - 10px)}
+  .receipt-editor-head{padding:17px 13px}
+  .receipt-editor-head h2{font-size:22px}
+  .receipt-editor-content{padding:13px}
+  .receipt-editor-grid{grid-template-columns:1fr}
+  .receipt-editor-wide{grid-column:auto}
+  .receipt-editor-actions{padding:12px;display:grid;grid-template-columns:1fr 1fr}
+  .receipt-editor-actions .btn{white-space:normal;min-height:46px}
+  .receipt-result-wrap{grid-template-columns:minmax(0,1fr) 40px}
+}
+@media print{
+  .receipt-editor-overlay,.receipt-topbar-actions,.contract-list-controls,.contract-list-tabs{display:none!important}
+}
+
+@media(max-width:760px){.mobile-nav{grid-template-columns:repeat(6,minmax(0,1fr))}.mobile-nav button:not(.mobile-add){min-width:0;padding:4px 0}}
+
+/* Exportação do recibo sempre na diagramação A4, independentemente da tela */
+.receipt-export-host{position:fixed;left:-12000px;top:0;z-index:-10;width:790px;pointer-events:none;overflow:visible}
+.receipt-sheet.receipt-export-layout{box-sizing:border-box!important;width:790px!important;max-width:none!important;
+  min-height:0!important;margin:0!important;padding:34px 43px 23px!important;
+  border:0!important;box-shadow:none!important;overflow:visible!important}
+.receipt-sheet.receipt-export-layout .receipt-brand{display:flex!important;flex-direction:row!important;
+  text-align:left!important;gap:17px!important;align-items:center!important;padding-bottom:14px!important}
+.receipt-sheet.receipt-export-layout .receipt-brand img{width:105px!important;max-width:105px!important;
+  max-height:98px!important;height:auto!important;flex:0 0 auto!important}
+.receipt-sheet.receipt-export-layout .receipt-brand-copy{align-items:flex-start!important;text-align:left!important}
+.receipt-sheet.receipt-export-layout .receipt-brand-copy h2{font-size:22px!important}
+.receipt-sheet.receipt-export-layout .receipt-heading{flex-direction:row!important;align-items:flex-start!important;
+  gap:15px!important;padding:16px 0!important}
+.receipt-sheet.receipt-export-layout .receipt-heading h1{font-size:29px!important}
+.receipt-sheet.receipt-export-layout .receipt-id{width:auto!important;min-width:150px!important;padding:11px!important}
+.receipt-sheet.receipt-export-layout .receipt-value{padding:18px!important;margin-bottom:17px!important}
+.receipt-sheet.receipt-export-layout .receipt-value>strong{font-size:34px!important}
+.receipt-sheet.receipt-export-layout .receipt-details{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px!important}
+.receipt-sheet.receipt-export-layout .receipt-details section{padding-bottom:13px!important}
+.receipt-sheet.receipt-export-layout .receipt-purpose{padding:14px 0!important}
+.receipt-sheet.receipt-export-layout .receipt-transaction{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;margin:15px 0!important}
+.receipt-sheet.receipt-export-layout .receipt-declaration{margin:15px 0!important}
+.receipt-sheet.receipt-export-layout .receipt-signature{margin:29px auto 24px!important}
+.receipt-sheet.receipt-export-layout .receipt-footer{flex-direction:row!important;font-size:9px!important}

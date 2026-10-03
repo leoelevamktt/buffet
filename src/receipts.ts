@@ -1,14 +1,27 @@
 import type { BuffetEvent, BusinessSettings, ReceivedPayment } from './types'
 
+export interface ReceiptRevision {
+  updatedAt: string
+  updatedBy: string
+  reason: string
+  previous: Pick<PaymentReceipt, 'issuer' | 'payer' | 'event' | 'payment' | 'description'>
+}
+
 export interface PaymentReceipt {
   id: string
   number: string
   eventId: string
   paymentId: string
-  status: 'issued' | 'cancelled'
+  status: 'issued' | 'cancelled' | 'deleted'
   issuedAt: string
   cancelledAt?: string
   cancelReason?: string
+  deletedAt?: string
+  deletedReason?: string
+  deletedBy?: string
+  updatedAt?: string
+  updatedBy?: string
+  revisions?: ReceiptRevision[]
   issuer: {
     businessName: string; legalName: string; document: string
     address: string; city: string; phone: string; email: string
@@ -125,4 +138,54 @@ export function amountInWordsBR(value: number): string {
   const full = integer ? integerWords(integer) + (integer === 1 ? ' real' : ' reais') : ''
   const small = fraction ? integerWords(fraction) + (fraction === 1 ? ' centavo' : ' centavos') : ''
   return full && small ? full + ' e ' + small : full || small || 'zero reais'
+}
+
+export interface ReceiptChanges {
+  description: string
+  payer: PaymentReceipt['payer']
+  payment: PaymentReceipt['payment']
+  issuer: PaymentReceipt['issuer']
+  event: PaymentReceipt['event']
+}
+
+export function reviseReceipt(
+  receipt: PaymentReceipt, changes: ReceiptChanges, reason: string,
+  actor: string, at = new Date()
+): PaymentReceipt {
+  if (receipt.status !== 'issued') throw new Error('Somente recibos ativos podem ser editados.')
+  if (reason.trim().length < 5 || reason.length > 500)
+    throw new Error('Informe o motivo da alteração (de 5 a 500 caracteres).')
+  if (!changes.payer.name.trim() || !changes.description.trim() || !changes.issuer.businessName.trim())
+    throw new Error('Preencha o pagador, a descrição e os dados do emissor.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(changes.payment.date) ||
+      !Number.isFinite(changes.payment.amount) || changes.payment.amount <= 0 ||
+      !changes.payment.method.trim())
+    throw new Error('Confirme a data, o valor positivo e a forma do pagamento.')
+  const previous: ReceiptRevision['previous'] = JSON.parse(JSON.stringify({
+    issuer: receipt.issuer, payer: receipt.payer, event: receipt.event,
+    payment: receipt.payment, description: receipt.description
+  }))
+  return {
+    ...receipt,
+    issuer: { ...changes.issuer }, payer: { ...changes.payer },
+    event: { ...changes.event }, payment: { ...changes.payment },
+    description: changes.description.trim(),
+    updatedAt: at.toISOString(), updatedBy: actor,
+    revisions: [
+      ...(receipt.revisions || []),
+      { updatedAt: at.toISOString(), updatedBy: actor, reason: reason.trim(), previous }
+    ]
+  }
+}
+
+export function archiveReceipt(
+  receipt: PaymentReceipt, reason: string, actor: string, at = new Date()
+): PaymentReceipt {
+  if (receipt.status === 'deleted') throw new Error('Recibo já excluído.')
+  if (reason.trim().length < 5 || reason.length > 500)
+    throw new Error('Informe um motivo para a exclusão (de 5 a 500 caracteres).')
+  return {
+    ...receipt, status: 'deleted', deletedAt: at.toISOString(),
+    deletedBy: actor, deletedReason: reason.trim()
+  }
 }

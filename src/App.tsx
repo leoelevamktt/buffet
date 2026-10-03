@@ -25,8 +25,9 @@ import { contractSequence, dateBR, eventServices, eventServiceItems, eventTotal,
 import { brandMark } from './brand'
 import { PaymentsModal } from './components/PaymentsModal'
 import { ReceiptPreview } from './components/ReceiptPreview'
+import { ReceiptEditor } from './components/ReceiptEditor'
 import { ReceiptsView } from './components/ReceiptsView'
-import { createReceipt, receiptMatchesPayment, type PaymentReceipt } from './receipts'
+import { createReceipt, receiptMatchesPayment, reviseReceipt, archiveReceipt, type ReceiptChanges, type PaymentReceipt } from './receipts'
 import { ServiceEditor } from './components/ServiceEditor'
 import { VerificationPage } from './components/VerificationPage'
 import { hydrateFullContractHtml, prepareFullContractEditorHtml, sanitizeFullContractHtml, validateFullContractHtml } from './fullContract'
@@ -167,6 +168,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null)
   const [activePaymentsId, setActivePaymentsId] = useState<string | null>(null)
   const [activeReceiptId, setActiveReceiptId] = useState<string | null>(null)
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null)
   const [receipts, setReceipts] = useState<PaymentReceipt[]>(initialWorkspace.receipts)
   const [toast, setToast] = useState('')
 
@@ -174,6 +176,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   const activeQuote = events.find((item) => item.id === activeQuoteId)
   const activePayments = events.find((item) => item.id === activePaymentsId)
   const activeReceipt = receipts.find((item) => item.id === activeReceiptId)
+  const editingReceipt = receipts.find((item) => item.id === editingReceiptId)
   const activeEventView = events.find((item) => item.id === activeEventViewId)
   const editingEvent = events.find((item) => item.id === editingEventId)
   const revisionRef = useRef(initialRevision)
@@ -377,6 +380,85 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
     notify('Recibo cancelado. O registro original foi mantido e poderá ser consultado.')
   }
 
+  const applyReceiptEdit = (receipt: PaymentReceipt, changes: ReceiptChanges, reason: string) => {
+    const corrected = reviseReceipt(receipt, changes, reason, currentUser.name)
+    const payment = receipt.payment
+    const financeChanged = payment.amount !== changes.payment.amount ||
+      payment.date !== changes.payment.date || payment.method !== changes.payment.method ||
+      payment.reference !== changes.payment.reference || payment.notes !== changes.payment.notes
+    if (financeChanged) {
+      const sourceEvent = events.find((item) => item.id === receipt.eventId)
+      const originalPayment = sourceEvent?.receivedPayments?.find((item) => item.id === receipt.paymentId)
+      if (!sourceEvent || !originalPayment || !receiptMatchesPayment(receipt, originalPayment))
+        throw new Error('Pagamento vinculado não encontrado ou divergente. Corrija apenas os dados descritivos ou revise o lançamento financeiro.')
+      setEvents((items) => items.map((item) => item.id !== receipt.eventId ? item : ({
+        ...item, receivedPayments: (item.receivedPayments || []).map((entry) =>
+          entry.id === receipt.paymentId ? { ...entry, ...changes.payment } : entry)
+      })))
+    }
+    setReceipts((items) => items.map((item) => item.id === receipt.id ? corrected : item))
+    setEditingReceiptId(null)
+    setActiveReceiptId(receipt.id)
+    notify('Recibo atualizado com registro da versão anterior no histórico.')
+  }
+
+  const deleteReceipt = (receipt: PaymentReceipt) => {
+    if (receipt.status === 'deleted') return
+    const reason = window.prompt('Informe o motivo da exclusão do recibo ' + receipt.number + '. O pagamento continuará no financeiro:')
+    if (reason === null) return
+    try {
+      const archived = archiveReceipt(receipt, reason, currentUser.name)
+      if (!window.confirm('Excluir da listagem ativa o recibo ' + receipt.number +
+        '? O documento e suas alterações continuarão no histórico de excluídos.')) return
+      setReceipts((items) => items.map((item) => item.id === receipt.id ? archived : item))
+      setActiveReceiptId(null)
+      setEditingReceiptId(null)
+      notify('Recibo excluído da listagem ativa, com histórico preservado.')
+    } catch (error) { notify(error instanceof Error ? error.message : 'Não foi possível excluir o recibo.') }
+  }
+
+  const archiveContract = async (id: string) => {
+    const event = events.find((item) => item.id === id)
+    if (!event || event.contractArchivedAt) return
+    const reason = window.prompt('Informe o motivo da exclusão do contrato ' + event.contractNumber +
+      '. Contratos assinados permanecerão guardados com suas evidências:')
+    if (reason === null) return
+    if (reason.trim().length < 5) { notify('Informe um motivo com pelo menos cinco caracteres.'); return }
+    if (!window.confirm('Retirar o contrato ' + event.contractNumber +
+      ' da listagem ativa? O cadastro do evento será mantido.')) return
+    if (event.contractStatus !== 'Assinado' && event.shareToken) {
+      try {
+        const response = await fetch('/api/contracts?token=' + encodeURIComponent(event.shareToken),
+          { method: 'DELETE' })
+        if (![204, 404].includes(response.status))
+          throw new Error('Falha ao revogar o link de assinatura. O contrato foi mantido.')
+      } catch (error) {
+        notify(error instanceof Error ? error.message : 'Erro ao revogar o contrato.')
+        return
+      }
+    }
+    setEvents((items) => items.map((item) => item.id === id ? {
+      ...item,
+      contractArchivedAt: new Date().toISOString(),
+      contractArchivedBy: currentUser.name,
+      contractArchivedReason: reason.trim().slice(0, 500),
+      ...(item.contractStatus === 'Assinado' ? {} : {
+        contractStatus: 'Rascunho' as const, shareToken: undefined, shareUrl: undefined, sharedAt: undefined
+      })
+    } : item))
+    setActiveContractId(null)
+    notify(event.contractStatus === 'Assinado'
+      ? 'Contrato assinado retirado da listagem. A assinatura, o hash e o documento permanecem acessíveis no histórico.'
+      : 'Contrato excluído da listagem e link anterior revogado.')
+  }
+
+  const restoreContract = (id: string) => {
+    setEvents((items) => items.map((item) => item.id === id
+      ? { ...item, contractArchivedAt: undefined, contractArchivedBy: undefined, contractArchivedReason: undefined }
+      : item))
+    notify('Contrato restaurado na listagem.')
+  }
+
   const saveReceivedPayments = async (id: string, payments: ReceivedPayment[]) => {
     const current = events.find((item) => item.id === id)
     if (!current) return
@@ -415,7 +497,14 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   }
 
   const deleteEvent = (id: string) => {
-    if (!window.confirm('Excluir este evento e o contrato relacionado?')) return
+    const event = events.find((item) => item.id === id)
+    if (!event) return
+    if (event.contractStatus === 'Assinado' || event.addenda?.some((item) => item.status === 'Assinado') ||
+        receipts.some((receipt) => receipt.eventId === id && receipt.status !== 'deleted')) {
+      notify('Este evento possui assinatura ou recibos associados. Preserve o histórico: arquive o contrato ou exclua apenas os recibos permitidos.')
+      return
+    }
+    if (!window.confirm('Excluir este evento sem assinatura e sem recibos ativos?')) return
     setEvents((current) => current.filter((item) => item.id !== id))
     notify('Evento removido.')
   }
@@ -451,11 +540,13 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
             <MenusView menus={menus} services={services} setMenus={setMenus} setServices={setServices} onNewMenu={() => setMenuEditorOpen(true)} notify={notify} />
           )}
           {section === 'contracts' && (
-            <ContractsView events={events} menus={menus} services={services} onOpen={setActiveContractId} />
+            <ContractsView events={events} menus={menus} services={services}
+              onOpen={setActiveContractId} onArchive={(id) => void archiveContract(id)}
+              onRestore={restoreContract} />
           )}
           {section === 'receipts' && <ReceiptsView receipts={receipts} events={events}
             onPreview={setActiveReceiptId} onOpenPayments={setActivePaymentsId}
-            onGoEvents={() => setSection('events')} />}
+            onGoEvents={() => setSection('events')} onDelete={deleteReceipt} />}
           {section === 'agenda' && <AgendaView events={events} />}
           {section === 'settings' && <SettingsView settings={settings} setSettings={setSettings} notify={notify} />}
           {section === 'users' && currentUser.role === 'admin' && <UsersView current={currentUser} notify={notify} />}
@@ -516,11 +607,18 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
           onUpdate={(patch) => updateEvent(activeContract.id, patch)}
           onPayments={() => setActivePaymentsId(activeContract.id)}
           notify={notify}
+          onArchive={() => void archiveContract(activeContract.id)}
+          onRestore={() => restoreContract(activeContract.id)}
         />
       )}
 
       {activeReceipt && <ReceiptPreview receipt={activeReceipt}
-        onClose={() => setActiveReceiptId(null)} onCancel={cancelReceipt} />}
+        onClose={() => setActiveReceiptId(null)} onCancel={cancelReceipt}
+        onEdit={(receipt) => { setActiveReceiptId(null); setEditingReceiptId(receipt.id) }}
+        onDelete={deleteReceipt} />}
+      {editingReceipt && <ReceiptEditor receipt={editingReceipt} currentUser={currentUser.name}
+        onClose={() => { setEditingReceiptId(null); setActiveReceiptId(editingReceipt.id) }}
+        onSave={(changes, reason) => applyReceiptEdit(editingReceipt, changes, reason)} />}
       {toast && <div className="toast"><CheckCircle2 size={18} />{toast}</div>}
     </div>
   )
@@ -561,7 +659,7 @@ function MobileNav({ section, onNavigate, onNewEvent }: {
   onNavigate: (section: Section) => void
   onNewEvent: () => void
 }) {
-  const items = navItems.slice(0, 5)
+  const items = navItems.slice(0, 6)
   return (
     <nav className="mobile-nav">
       {items.map(({ id, label, icon: Icon }) => (
@@ -951,24 +1049,47 @@ function MenusView({ menus, services, setMenus, setServices, onNewMenu, notify }
   )
 }
 
-function ContractsView({ events, menus, services, onOpen }: {
+function ContractsView({ events, menus, services, onOpen, onArchive, onRestore }: {
   events: BuffetEvent[]
   menus: MenuItem[]
   services: ServiceItem[]
   onOpen: (id: string) => void
+  onArchive: (id: string) => void
+  onRestore: (id: string) => void
 }) {
+  const [showArchived, setShowArchived] = useState(false)
+  const visible = events.filter((event) => Boolean(event.contractArchivedAt) === showArchived)
   return (
     <section className="panel table-panel">
-      <div className="panel-toolbar"><div><span className="eyebrow">DOCUMENTOS</span><h2>Contratos</h2><p className="muted">Documentos gerados a partir dos dados de cada evento.</p></div></div>
+      <div className="panel-toolbar"><div><span className="eyebrow">DOCUMENTOS</span><h2>Contratos</h2>
+        <p className="muted">Exclua rascunhos ou arquive documentos assinados sem perder os registros.</p></div>
+        <div className="contract-list-tabs">
+          <button className={!showArchived ? 'active' : ''} onClick={() => setShowArchived(false)}>
+            Ativos ({events.filter((event) => !event.contractArchivedAt).length})</button>
+          <button className={showArchived ? 'active' : ''} onClick={() => setShowArchived(true)}>
+            Excluídos / Arquivados ({events.filter((event) => event.contractArchivedAt).length})</button>
+        </div>
+      </div>
       <div className="contract-cards">
-        {events.map((event) => (
-          <button className="contract-card" key={event.id} onClick={() => onOpen(event.id)}>
-            <div className="contract-icon"><FileSignature size={22} /></div>
-            <div className="contract-main"><span>{event.contractNumber}</span><strong>{event.clientName}</strong><small>{dateBR(event.eventDate)} · {event.eventType}</small></div>
-            <div className="contract-value"><strong>{money(eventTotal(event, menus, services))}</strong><span className={statusClass(event.contractStatus)}>{event.contractStatus}</span></div>
-            <ArrowUpRight size={18} className="contract-arrow" />
-          </button>
+        {visible.map((event) => (
+          <div className="contract-list-item" key={event.id}>
+            <button className="contract-card" onClick={() => onOpen(event.id)}>
+              <div className="contract-icon"><FileSignature size={22} /></div>
+              <div className="contract-main"><span>{event.contractNumber}</span><strong>{event.clientName}</strong>
+                <small>{dateBR(event.eventDate)} · {event.eventType}</small>
+                {event.contractArchivedAt && <small>Motivo: {event.contractArchivedReason || 'Não informado'}</small>}</div>
+              <div className="contract-value"><strong>{money(eventTotal(event, menus, services))}</strong>
+                <span className={statusClass(event.contractStatus)}>{event.contractArchivedAt ? 'Arquivado · ' : ''}{event.contractStatus}</span></div>
+              <ArrowUpRight size={18} className="contract-arrow" />
+            </button>
+            <div className="contract-list-controls">{showArchived ?
+              <button className="btn btn-quiet" onClick={() => onRestore(event.id)}><Check size={15}/> Restaurar</button> :
+              <button className="contract-list-delete" onClick={() => onArchive(event.id)}>
+                <Trash2 size={16}/> {event.contractStatus === 'Assinado' ? 'Arquivar' : 'Excluir'}</button>}
+            </div>
+          </div>
         ))}
+        {!visible.length && <p className="contract-empty">{showArchived ? 'Nenhum contrato arquivado.' : 'Nenhum contrato ativo.'}</p>}
       </div>
     </section>
   )
@@ -2178,7 +2299,7 @@ function ContractRichEditor({ template, documentHtml, resetHtml, onClose, onSave
   )
 }
 
-function ContractModal({ event, menus, services, settings, onClose, onUpdate, onPayments, notify }: {
+function ContractModal({ event, menus, services, settings, onClose, onUpdate, onPayments, onArchive, onRestore, notify }: {
   event: BuffetEvent
   menus: MenuItem[]
   services: ServiceItem[]
@@ -2186,6 +2307,8 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
   onClose: () => void
   onUpdate: (patch: Partial<BuffetEvent>) => void
   onPayments: () => void
+  onArchive: () => void
+  onRestore: () => void
   notify: (message: string) => void
 }) {
   const [sharing, setSharing] = useState(false)
@@ -2380,21 +2503,25 @@ function ContractModal({ event, menus, services, settings, onClose, onUpdate, on
                 {event.clientPhone && <option value={event.clientPhone}>Principal: {event.clientPhone}</option>}
                 <option value={event.clientPhoneSecondary}>Reserva: {event.clientPhoneSecondary}</option>
               </select></label>}
-            <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado'}><Pencil size={17} /> Editar contrato inteiro</button>
-            {event.contractStatus === 'Assinado' && <button className="btn btn-quiet addendum-launch" onClick={() => setManagingAddenda(true)}>
+            <button className="btn btn-quiet" title="Editar cabeçalho, início, cláusulas e todo o documento" onClick={() => setEditingContract(true)} disabled={event.contractStatus === 'Assinado' || Boolean(event.contractArchivedAt)}><Pencil size={17} /> Editar contrato inteiro</button>
+            {event.contractStatus === 'Assinado' && <button className="btn btn-quiet addendum-launch" onClick={() => setManagingAddenda(true)} disabled={Boolean(event.contractArchivedAt)}>
               <FilePlus2 size={17}/> Adendos {(event.addenda?.length || 0) > 0 ? '(' + event.addenda!.length + ')' : ''}
             </button>}
+            {event.contractArchivedAt
+              ? <button className="btn btn-quiet" onClick={onRestore}><Check size={16}/> Restaurar contrato</button>
+              : <button className="btn btn-quiet contract-toolbar-delete" onClick={onArchive}><Trash2 size={16}/>
+                {event.contractStatus === 'Assinado' ? 'Arquivar contrato' : 'Excluir contrato'}</button>}
             <button className="btn btn-quiet" onClick={onPayments}><CircleDollarSign size={17} /> Recebimentos / Recibos</button>
             <button className="btn btn-quiet" onClick={() => window.print()}><Printer size={17} /> Imprimir / PDF</button>
             {event.shareUrl && <button className="btn btn-quiet" onClick={copySigningLink}><FileText size={17} /> Copiar link</button>}
-            <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing || event.contractStatus === 'Assinado'}><Send size={17} /> {sharing ? 'Gerando...' : 'WhatsApp'}</button>
+            <button className="btn btn-quiet" onClick={sendWhatsApp} disabled={sharing || event.contractStatus === 'Assinado' || Boolean(event.contractArchivedAt)}><Send size={17} /> {sharing ? 'Gerando...' : 'WhatsApp'}</button>
             {event.shareToken && event.contractStatus !== 'Assinado' && <button className="btn btn-quiet" onClick={() => syncRemote(false)} disabled={syncing}><CheckCircle2 size={17} /> {syncing ? 'Verificando...' : 'Verificar'}</button>}
-            <button className="btn btn-primary" onClick={openSigning} disabled={sharing || event.contractStatus === 'Assinado'}><PenLine size={17} /> {event.contractStatus === 'Assinado' ? 'Assinado' : event.shareUrl ? 'Abrir assinatura' : 'Gerar link'}</button>
+            <button className="btn btn-primary" onClick={openSigning} disabled={sharing || event.contractStatus === 'Assinado' || Boolean(event.contractArchivedAt)}><PenLine size={17} /> {event.contractStatus === 'Assinado' ? 'Assinado' : event.shareUrl ? 'Abrir assinatura' : 'Gerar link'}</button>
           </div>
         </div>
         <div className="contract-model-bar no-print">
           <div><FileText size={17} /><span><strong>Modelo do contrato</strong><small>Escolha o padrão que será usado neste evento.</small></span></div>
-          <select value={event.contractStatus === 'Assinado' ? printTemplate.id : (event.contractTemplateId || contractTemplate.id)} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado'}>
+          <select value={event.contractStatus === 'Assinado' ? printTemplate.id : (event.contractTemplateId || contractTemplate.id)} onChange={(e) => void changeContractTemplate(e.target.value)} disabled={event.contractStatus === 'Assinado' || Boolean(event.contractArchivedAt)}>
             {compatibleTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
           {(event.customContractHtml || event.customContractFullHtml) && <span className="contract-custom-badge"><Pencil size={13} /> Personalizado</span>}
