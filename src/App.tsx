@@ -32,6 +32,7 @@ import { ServiceEditor } from './components/ServiceEditor'
 import { VerificationPage } from './components/VerificationPage'
 import { hydrateFullContractHtml, prepareFullContractEditorHtml, sanitizeFullContractHtml, validateFullContractHtml } from './fullContract'
 import './styles.css'
+import './contract.css'
 
 const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
