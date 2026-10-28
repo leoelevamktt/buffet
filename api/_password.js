@@ -11,8 +11,10 @@ export const passwordHash = async (value) => {
   return ['scrypt', '16384', '8', '1', salt.toString('hex'), key.toString('hex')].join('$')
 }
 export const passwordVerify = async (candidate, encoded) => {
-  if (typeof candidate !== 'string' || candidate.length > 256 || !/^scrypt\$16384\$8\$1\$[a-f0-9]{48}\$[a-f0-9]{128}$/.test(String(encoded))) return false
-  const [, , , , salt, target] = encoded.split('$')
+  if (typeof candidate !== 'string' || candidate.length > 256) return false
+  const valid = /^scrypt\$16384\$8\$1\$[a-f0-9]{48}\$[a-f0-9]{128}$/.test(String(encoded))
+  // Unknown accounts still perform scrypt to avoid revealing account existence through timing.
+  const [, , , , salt, target] = (valid ? encoded : 'scrypt$16384$8$1$'+'0'.repeat(48)+'$'+'0'.repeat(128)).split('$')
   const computed = await scrypt(candidate, Buffer.from(salt, 'hex'), 64, config)
-  return timingSafeEqual(computed, Buffer.from(target, 'hex'))
+  return valid && timingSafeEqual(computed, Buffer.from(target, 'hex'))
 }

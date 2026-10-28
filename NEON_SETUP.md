@@ -5,7 +5,7 @@
 - `ADMIN_SESSION_SECRET` protege os tokens das sessões de administradores e operadores.
 - `ADMIN_PASSWORD` é usado **somente para criar o usuário admin inicial**; a autenticação posterior
   verifica o hash da senha no Neon, não a variável em texto puro.
-- Tabelas: `buffet_workspace`, `buffet_users`, `buffet_sessions` e `buffet_login_attempts`.
+- Tabelas: `buffet_workspace`, `buffet_users`, `buffet_sessions`, `buffet_login_attempts` e `buffet_security_events`.
 - A criação do esquema e do admin inicial é idempotente: `node scripts/neon-setup.mjs`.
 - O esquema e o admin inicial já foram criados e validados no Neon.
 
@@ -26,7 +26,7 @@
 - Perfil `operador`: eventos, cardápios, contratos, recibos e demais funções operacionais.
   A API impede acesso e alterações à administração de usuários.
 - `Minha conta`: alteração da própria senha após conferir a senha atual.
-- Limitação de tentativas de login por IP. Requisições de alteração exigem a mesma origem.
+- Limitação atômica de tentativas de login por IP e por conta; usuário e e-mail compartilham o limite. Requisições de alteração exigem a mesma origem.
 - Todas as rotas administrativas de escrita em contratos e orçamentos exigem sessão.
 
 ## Primeiro acesso e importação de dados existentes
@@ -50,6 +50,7 @@ navegador antigo, não selecione “começar com banco vazio”.
 - Vercel Blob privado continua armazenando snapshots assinados, recibos técnicos,
   evidências de auditoria e documentos compartilháveis.
 - A aplicação não disponibiliza a string de conexão PostgreSQL no frontend.
+- Produção usa um papel PostgreSQL exclusivo, sem propriedade dos objetos, sem criação de objetos públicos e sem exclusão do workspace ou dos registros de segurança. Veja `SECURITY.md` para a migração e as permissões necessárias.
 
 ## Manutenção e testes
 - `node scripts/neon-setup.mjs` — aplica o esquema de forma não destrutiva.

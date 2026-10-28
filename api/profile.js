@@ -1,6 +1,7 @@
 import { database } from './_db.js'
 import { clearSession, requireAdmin } from './_session.js'
 import { passwordHash, passwordVerify, validPassword } from './_password.js'
+import { reserveAttempt, securityEvent } from './_security.js'
 
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','no-store')
@@ -14,9 +15,16 @@ export default async function handler(req,res) {
     return res.status(400).json({error:'A nova senha deve ter entre 12 e 128 caracteres.'})
   try {
     const sql=database()
+    const attemptKey='password:'+user.id
+    if (await reserveAttempt(sql,attemptKey,8)) {
+      res.setHeader('Retry-After','900')
+      return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'})
+    }
     const existing=await sql.query('SELECT password_hash FROM buffet_users WHERE id=$1',[user.id])
-    if (!existing.rowCount || !(await passwordVerify(current,existing.rows[0].password_hash)))
+    if (!existing.rowCount || !(await passwordVerify(current,existing.rows[0].password_hash))) {
+      await securityEvent(sql,req,'password_change_failure',user.id)
       return res.status(400).json({error:'Senha atual incorreta.'})
+    }
     const encrypted=await passwordHash(next)
     const client=await sql.connect()
     try {
@@ -25,6 +33,8 @@ export default async function handler(req,res) {
         [user.id,encrypted,existing.rows[0].password_hash])
       if (!result.rowCount) {await client.query('ROLLBACK');return res.status(409).json({error:'Sua senha foi alterada em outra sessão. Entre novamente.'})}
       await client.query('DELETE FROM buffet_sessions WHERE user_id=$1',[user.id])
+      await client.query('DELETE FROM buffet_login_attempts WHERE ip=$1',[attemptKey])
+      await securityEvent(client,req,'password_changed',user.id)
       await client.query('COMMIT')
       await clearSession(req,res)
       return res.status(200).json({changed:true})

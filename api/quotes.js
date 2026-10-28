@@ -1,6 +1,7 @@
 import { del, get, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
 import { requireAdmin } from './_session.js'
+import { isCode } from './_audit.js'
 
 const pathnameFor = (token) => 'quotes/' + token + '.json'
 
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Link de orçamento inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Link de orçamento inválido.' })
       const quote = await readQuote(token)
       if (!quote) return res.status(404).json({ error: 'Orçamento não encontrado.' })
       return res.status(200).json({ quote })
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       if (!(await requireAdmin(req, res))) return
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Link de orçamento inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Link de orçamento inválido.' })
       await del(pathnameFor(token))
       return res.status(204).end()
     }

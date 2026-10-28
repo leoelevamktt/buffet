@@ -1,7 +1,7 @@
 import { del, get, put, head } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
 import { requireAdmin } from './_session.js'
-import { canonicalHash, signedDocumentPayload, getTrustedIp, browserInfo, isEmail, EVIDENCE_VERSION } from './_audit.js'
+import { canonicalHash, signedDocumentPayload, getTrustedIp, browserInfo, isEmail, isCode, EVIDENCE_VERSION } from './_audit.js'
 
 const pathnameFor = (token) => 'contracts/' + token + '.json'
 
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Token inválido.' })
 
       const contract = await readContract(token)
       if (!contract) return res.status(404).json({ error: 'Contrato não encontrado ou link inválido.' })
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       if (!(await requireAdmin(req, res))) return
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Token inválido.' })
       const contract = await readContract(token)
       if (!contract) return res.status(204).end()
       if (contract.status === 'signed') return res.status(409).json({ error: 'Contrato assinado não pode ser revogado.' })

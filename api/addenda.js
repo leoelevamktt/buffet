@@ -1,7 +1,7 @@
 import { del, get, head, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
 import { requireAdmin } from './_session.js'
-import { canonicalHash, getTrustedIp, browserInfo, isEmail, EVIDENCE_VERSION, sha256 } from './_audit.js'
+import { canonicalHash, getTrustedIp, browserInfo, isEmail, isCode, EVIDENCE_VERSION, sha256 } from './_audit.js'
 
 const pathFor = (token) => 'addenda/' + token + '.json'
 const contractPath = (token) => 'contracts/' + token + '.json'
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Token inválido.' })
       const addendum = await read(pathFor(token))
       if (!addendum) return res.status(404).json({ error: 'Adendo não encontrado ou link inválido.' })
       return res.status(200).json({
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       if (!(await requireAdmin(req, res))) return
       const token = String(req.query.token || '')
-      if (!token || token.length < 20) return res.status(400).json({ error: 'Token inválido.' })
+      if (!isCode(token)) return res.status(400).json({ error: 'Token inválido.' })
       const addendum = await read(pathFor(token))
       if (!addendum) return res.status(204).end()
       if (addendum.status === 'signed') return res.status(409).json({ error: 'Adendo assinado não pode ser revogado.' })

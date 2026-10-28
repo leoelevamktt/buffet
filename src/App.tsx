@@ -16,6 +16,7 @@ import { UsersView } from './components/UsersView'
 import { ProfileView } from './components/ProfileView'
 import { AddendumManager } from './components/AddendumManager'
 import { AddendumDocument } from './components/AddendumDocument'
+import { sanitizeAddendumHtml } from './addenda'
 import { ClientsView } from './components/ClientsView'
 import type { AccountUser } from './auth'
 import { downloadWorkspace, type WorkspaceData } from './workspace'
@@ -105,34 +106,6 @@ interface RemoteAddendum {
   signature?: NonNullable<BuffetEvent['signature']> | null
 }
 
-
-function sanitizeRichHtml(html: string) {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html')
-  const allowed = new Set(['DIV', 'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'SPAN', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD'])
-  const walk = (node: Element) => {
-    Array.from(node.children).forEach((child) => {
-      if (!allowed.has(child.tagName)) {
-        const fragment = doc.createDocumentFragment()
-        while (child.firstChild) fragment.appendChild(child.firstChild)
-        child.replaceWith(fragment)
-        return
-      }
-      Array.from(child.attributes).forEach((attribute) => {
-        if (attribute.name !== 'style') child.removeAttribute(attribute.name)
-      })
-      if (child.hasAttribute('style')) {
-        const textAlign = (child as HTMLElement).style.textAlign
-        child.removeAttribute('style')
-        if (['left', 'center', 'right', 'justify'].includes(textAlign)) (child as HTMLElement).style.textAlign = textAlign
-      }
-      walk(child)
-    })
-  }
-  const root = doc.body.firstElementChild as HTMLElement
-  walk(root)
-  return root.innerHTML
-}
 
 function defaultContractEditorHtml(template: ContractTemplate) {
   const clauses = template.clauses.map((clause, index) => '<p><strong>' + (index + 1) + '.</strong> ' + clause + '</p>').join('')
@@ -2719,7 +2692,7 @@ function ContractDocument({ event, menu, services, settings, total, templateOver
       <section className="doc-section contract-clauses">
         <div className="doc-section-head"><span>{template.type === 'services' ? '05' : '04'}</span><h2>{event.customContractHtml ? 'Conteúdo contratual personalizado' : 'Cláusulas do modelo ' + template.name}</h2></div>
         {event.customContractHtml
-          ? <div className="custom-contract-rich" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(event.customContractHtml) }} />
+          ? <div className="custom-contract-rich" dangerouslySetInnerHTML={{ __html: sanitizeAddendumHtml(event.customContractHtml) }} />
           : <div className="clause-list">{contractClauses.map((clause, index) => <p key={index}><strong>{index + 1}.</strong> {clause}</p>)}</div>}
         {(!menu || menu.sourceLabel !== template.sourceLabel) && <TemplateOperationalDetails template={template} />}
       </section>

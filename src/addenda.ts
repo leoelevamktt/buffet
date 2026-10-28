@@ -9,7 +9,7 @@ const alignments = new Set(['left','center','right','justify'])
 const parser = (html: string) => new DOMParser().parseFromString('<main id="addendum-root">' + html + '</main>', 'text/html')
 
 export function sanitizeAddendumHtml(html: string): string {
-  const doc = parser(String(html || '').slice(0, 600_000))
+  const doc = parser(String(html || ''))
   const root = doc.querySelector('#addendum-root')!
   const filter = (parent: Element) => {
     for (const node of Array.from(parent.children)) {

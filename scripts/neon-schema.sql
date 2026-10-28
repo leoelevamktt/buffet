@@ -32,3 +32,14 @@ CREATE TABLE IF NOT EXISTS buffet_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_buffet_sessions_user ON buffet_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_buffet_sessions_expiry ON buffet_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS buffet_security_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event text NOT NULL,
+  user_id uuid,
+  ip text NOT NULL,
+  user_agent text NOT NULL DEFAULT '',
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_buffet_security_events_time ON buffet_security_events(created_at);

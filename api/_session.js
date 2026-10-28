@@ -1,9 +1,10 @@
 import { createHmac, randomBytes } from 'node:crypto'
 import { database } from './_db.js'
+import { securityEvent } from './_security.js'
 
-const cookieName = 'akela_session'
 const seconds = 12 * 60 * 60
 const production = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+const cookieName = production ? '__Host-akela_session' : 'akela_session'
 const hash = (token) => createHmac('sha256', process.env.ADMIN_SESSION_SECRET)
   .update('buffet-neon-session-v2:' + token).digest('hex')
 const options = 'HttpOnly; Path=/; SameSite=Strict; Max-Age=' + seconds + (production ? '; Secure' : '')
@@ -11,6 +12,7 @@ export const sessionConfigured = () => Boolean(process.env.ADMIN_SESSION_SECRET?
 const extract = (req) => String(req.headers.cookie || '').split(';').map((part) => part.trim())
   .find((part) => part.startsWith(cookieName + '='))?.slice(cookieName.length + 1) || ''
 export const safeOrigin = (req) => {
+  if (req.headers['sec-fetch-site'] === 'cross-site') return false
   if (req.method === 'GET') return true
   const origin = String(req.headers.origin || '')
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
@@ -18,12 +20,16 @@ export const safeOrigin = (req) => {
   try { return new URL(origin).host.toLowerCase() === host.toLowerCase() } catch { return false }
 }
 
-export async function createSession(res, userId) {
+export async function createSession(res, userId, expectedPasswordHash) {
   if (!sessionConfigured()) throw new Error('Segredo de sessão não configurado.')
   const token = randomBytes(32).toString('base64url')
-  await database().query(`INSERT INTO buffet_sessions(token_hash,user_id,expires_at)
-    VALUES($1,$2,now()+interval '12 hours')`, [hash(token), userId])
+  const result = await database().query(`WITH current_user_row AS (
+    SELECT id FROM buffet_users WHERE id=$2 AND active=TRUE AND password_hash=$3 FOR UPDATE
+  ) INSERT INTO buffet_sessions(token_hash,user_id,expires_at)
+    SELECT $1,id,now()+interval '12 hours' FROM current_user_row`, [hash(token), userId, expectedPasswordHash])
+  if (!result.rowCount) return false
   res.setHeader('Set-Cookie', cookieName + '=' + token + '; ' + options)
+  return true
 }
 export async function clearSession(req, res) {
   const token = extract(req)
@@ -44,5 +50,8 @@ export async function requireAdmin(req,res,role) {
   const user=await getSession(req)
   if (!user) {res.status(401).json({error:'Sessão ausente ou expirada. Entre novamente.'});return null}
   if (role && user.role!==role) {res.status(403).json({error:'Somente administradores podem acessar esta área.'});return null}
+  await securityEvent(database(),req,'admin_request',user.id,{
+    method:req.method,path:String(req.url||'').split('?')[0].slice(0,100)
+  })
   return user
 }
