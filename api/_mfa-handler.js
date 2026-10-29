@@ -148,7 +148,7 @@ export default async function handler(req,res) {
       await client.query('UPDATE buffet_users SET last_login_at=now() WHERE id=$1',[user.id])
       const session=await createSession(client,user.id,user.password_hash,version)
       if (!session) throw new Error('Falha ao criar sessão.')
-      await securityEvent(client,req,enrolling?'mfa_enrolled':'login_success',user.id)
+      await securityEvent(client,req,enrolling?'mfa_enrolled':'mfa_login_success',user.id)
       await client.query('COMMIT');clearChallengeCookie(res);setSessionCookie(res,session)
       return res.status(200).json({authenticated:true,...(codes?{recoveryCodes:codes}:{})})
     }
