@@ -8,6 +8,7 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
   process.env.DATABASE_URL=process.env.SECURITY_TEST_DATABASE_URL
   process.env.ADMIN_SESSION_SECRET=randomBytes(32).toString('hex')
   process.env.MFA_ENCRYPTION_KEY=randomBytes(32).toString('hex')
+  process.env.WORKSPACE_ENCRYPTION_KEY=randomBytes(32).toString('hex')
   process.env.VERCEL_ENV='production'
   const {database}=await import('../api/_db.js')
   const {passwordHash}=await import('../api/_password.js')
@@ -79,6 +80,32 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     assert.equal((await call(master,'POST',{password:'wrong'},oldSession)).code,401)
     assert.equal((await call(master,'POST',{password:'Master!Temporary2026'},oldSession)).code,200)
     assert.equal((await call(workspace,'GET',{},oldSession)).code,200)
+    const originalWorkspace={events:[{name:'Segredo de teste'}],clients:[],menus:[],services:[],settings:{},receipts:[]}
+    assert.equal((await call(workspace,'POST',{data:originalWorkspace,revision:0},oldSession)).code,201)
+    const savedWorkspace=await pool.query("SELECT data,revision FROM buffet_workspace WHERE id='main'")
+    assert.ok(savedWorkspace.rows[0].data.encrypted)
+    assert.ok(!JSON.stringify(savedWorkspace.rows[0].data).includes('Segredo de teste'))
+    assert.deepEqual((await call(workspace,'GET',{},oldSession)).body.data,originalWorkspace)
+    const originalKey=process.env.WORKSPACE_ENCRYPTION_KEY
+    process.env.WORKSPACE_ENCRYPTION_KEY=randomBytes(32).toString('hex')
+    try {
+      assert.equal((await call(workspace,'PUT',{data:originalWorkspace,revision:1},oldSession)).code,500)
+      assert.deepEqual((await pool.query("SELECT data,revision FROM buffet_workspace WHERE id='main'")).rows[0],savedWorkspace.rows[0])
+    } finally {process.env.WORKSPACE_ENCRYPTION_KEY=originalKey}
+    await pool.query("UPDATE buffet_workspace SET data=$1::jsonb,revision=revision+1 WHERE id='main'",[JSON.stringify(originalWorkspace)])
+    const {encryptExistingWorkspace}=await import('./_encrypt-workspace.js')
+    const migrationClient=await pool.connect();let backup
+    try {
+      await migrationClient.query('BEGIN')
+      const migrated=await encryptExistingWorkspace(migrationClient,async value=>{backup=value})
+      assert.equal(migrated.alreadyEncrypted,false);assert.ok(backup.data.encrypted)
+      assert.equal(Number(backup.revision),migrated.revision)
+      const {decryptWorkspace}=await import('../api/_workspace-crypto.js')
+      assert.deepEqual(decryptWorkspace(backup.data),originalWorkspace)
+      await migrationClient.query('COMMIT')
+    } finally {migrationClient.release()}
+    assert.deepEqual((await call(workspace,'GET',{},oldSession)).body.data,originalWorkspace)
+    assert.ok((await pool.query("SELECT data FROM buffet_workspace WHERE id='main'")).rows[0].data.encrypted)
     const accounts=await call(users,'GET',{},oldSession)
     assert.equal(accounts.code,200);assert.equal(accounts.body.users[0].password_hash,undefined)
     assert.equal(accounts.body.users[0].mfa_secret,undefined)

@@ -2,6 +2,7 @@ import { database } from './_db.js'
 import { clearSession, getSession, safeOrigin, sessionConfigured } from './_session.js'
 import { beginMfa, pendingMfa, challengeHash, clearChallengeCookie } from './_mfa.js'
 import { mfaConfigured } from './_mfa-crypto.js'
+import { workspaceKeyConfigured, workspaceKeyFingerprint } from './_workspace-crypto.js'
 import { passwordVerify } from './_password.js'
 import { createHmac } from 'node:crypto'
 import { getTrustedIp } from './_audit.js'
@@ -22,7 +23,7 @@ export default async function handler(req,res) {
     if (req.method==='GET') {
       const user=await getSession(req)
       const pending = user ? null : await pendingMfa(req)
-      return res.status(200).json({authenticated:Boolean(user),user,mfaStage:pending?.stage || null})
+      return res.status(200).json({authenticated:Boolean(user),user,mfaStage:pending?.stage || null,dataProtectionConfigured:workspaceKeyConfigured(),dataProtectionFingerprint:workspaceKeyFingerprint()})
     }
     if (req.method==='DELETE') {
       const user=await getSession(req)

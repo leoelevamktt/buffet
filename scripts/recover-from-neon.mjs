@@ -10,16 +10,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { canonicalHash, signedDocumentPayload, verifyAudit, sha256 } from '../api/_audit.js'
+import { decryptWorkspace } from '../api/_workspace-crypto.js'
 const project=process.cwd()
 const env=fs.readFileSync(path.join(project,'.env.local'),'utf8')
 const auditKey=env.match(/^SIGNATURE_AUDIT_SECRET=(.+)$/m)?.[1]?.trim()
+process.env.WORKSPACE_ENCRYPTION_KEY ||= env.match(/^WORKSPACE_ENCRYPTION_KEY=(.+)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'')
 if(!auditKey || auditKey.length<32)throw Error('SIGNATURE_AUDIT_SECRET is missing locally')
 const defaultParent=path.join(os.homedir(),'Documents','BuffetAkela')
 const defaultFolder=fs.readdirSync(defaultParent).filter(x=>x.startsWith('migration-backup-')).sort().at(-1)
 const root=process.argv[2] || path.join(defaultParent,defaultFolder)
 const snapshot=JSON.parse(fs.readFileSync(path.join(root,'neon-snapshot.json'),'utf8'))
-const workspace=snapshot.tables.buffet_workspace?.find(r=>r.id==='main')?.data
-if(!workspace)throw Error('Main workspace backup not found')
+const saved=snapshot.tables.buffet_workspace?.find(r=>r.id==='main')?.data
+if(!saved)throw Error('Main workspace backup not found')
+const workspace=decryptWorkspace(saved)
 const output=path.join(root,'reconstructed-blob')
 fs.mkdirSync(output,{recursive:true})
 const results=[]

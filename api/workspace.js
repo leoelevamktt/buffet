@@ -1,5 +1,6 @@
 import { database } from './_db.js'
 import { requireSensitive } from './_session.js'
+import { decryptWorkspace, encryptWorkspace, workspaceKeyConfigured } from './_workspace-crypto.js'
 
 const keys = ['events', 'clients', 'menus', 'services', 'settings', 'receipts']
 const validate = (data) => {
@@ -14,6 +15,7 @@ const validate = (data) => {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (!(await requireSensitive(req, res))) return
+  if (!workspaceKeyConfigured()) return res.status(503).json({error:'Proteção dos dados não configurada.'})
   if (!['GET', 'POST', 'PUT'].includes(req.method)) return res.status(405).json({ error: 'Método não permitido.' })
   try {
     const sql = database()
@@ -22,28 +24,39 @@ export default async function handler(req, res) {
       if (!result.rowCount) return res.status(200).json({ initialized: false, revision: 0 })
       const state = result.rows[0]
       return res.status(200).json({
-        initialized: true, data: state.data, revision: Number(state.revision), updatedAt: state.updated_at
+        initialized: true, data: decryptWorkspace(state.data), revision: Number(state.revision), updatedAt: state.updated_at
       })
     }
     const serialized = JSON.stringify(req.body?.data || '')
     if (serialized.length > 5_000_000 || !validate(req.body?.data))
       return res.status(400).json({ error: 'Dados incompletos ou excedem os limites permitidos.' })
+    const encrypted = JSON.stringify(encryptWorkspace(req.body.data))
     const revision = req.body?.revision
     if (!Number.isSafeInteger(revision) || revision < 0)
       return res.status(400).json({ error: 'Revisão inválida.' })
     if (req.method === 'POST') {
       if (revision !== 0) return res.status(400).json({ error: 'Inicialização exige revisão zero.' })
       const response = await sql.query(`INSERT INTO buffet_workspace(id,data,revision)
-        VALUES('main',$1::jsonb,1) ON CONFLICT(id) DO NOTHING RETURNING revision,updated_at`, [serialized])
+        VALUES('main',$1::jsonb,1) ON CONFLICT(id) DO NOTHING RETURNING revision,updated_at`, [encrypted])
       if (!response.rowCount) return res.status(409).json({ error: 'O banco já foi inicializado. Recarregue para acessar os dados existentes.' })
       return res.status(201).json({ initialized: true, revision: 1, updatedAt: response.rows[0].updated_at })
     }
     if (revision === 0) return res.status(409).json({ error: 'Inicialize o banco antes de atualizar.' })
-    const changed = await sql.query(`UPDATE buffet_workspace SET data=$1::jsonb, revision=revision+1,
-      updated_at=now() WHERE id='main' AND revision=$2 RETURNING revision,updated_at`, [serialized,revision])
-    if (!changed.rowCount)
-      return res.status(409).json({ error: 'Outra sessão atualizou o banco. Recarregue os dados antes de salvar.' })
-    return res.status(200).json({ revision: Number(changed.rows[0].revision), updatedAt: changed.rows[0].updated_at })
+    const client=await sql.connect()
+    try {
+      await client.query('BEGIN')
+      const current=await client.query("SELECT data,revision FROM buffet_workspace WHERE id='main' FOR UPDATE")
+      if (!current.rowCount || Number(current.rows[0].revision)!==revision) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: 'Outra sessão atualizou o banco. Recarregue os dados antes de salvar.' })
+      }
+      decryptWorkspace(current.rows[0].data)
+      const changed=await client.query(`UPDATE buffet_workspace SET data=$1::jsonb, revision=revision+1,
+        updated_at=now() WHERE id='main' AND revision=$2 RETURNING revision,updated_at`,[encrypted,revision])
+      await client.query('COMMIT')
+      return res.status(200).json({ revision: Number(changed.rows[0].revision), updatedAt: changed.rows[0].updated_at })
+    } catch(error) {await client.query('ROLLBACK').catch(()=>{});throw error}
+    finally {client.release()}
   } catch (error) {
     console.error('workspace_operation_error', error.message)
     return res.status(500).json({ error: 'Não foi possível acessar o Neon. Os dados não foram confirmados como salvos.' })

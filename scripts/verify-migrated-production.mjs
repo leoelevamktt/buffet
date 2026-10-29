@@ -1,9 +1,11 @@
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import{canonicalHash,verifyAudit,sha256}from'../api/_audit.js';
+import { decryptWorkspace } from '../api/_workspace-crypto.js';
 const base='https://akelabuffet.vercel.app';
 const content=fs.readFileSync('.env.local','utf8');
+process.env.WORKSPACE_ENCRYPTION_KEY ||= content.match(/^WORKSPACE_ENCRYPTION_KEY=(.*)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'');
 const audit=content.match(/^SIGNATURE_AUDIT_SECRET=(.*)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'');
 const fresh=JSON.parse(fs.readFileSync(path.join(os.homedir(),'Documents','BuffetAkela','neon-fresh-before-migration-2026-10-03.json')));
-const workspace=fresh.tables.buffet_workspace.find(x=>x.id==='main').data;
+const workspace=decryptWorkspace(fresh.tables.buffet_workspace.find(x=>x.id==='main').data);
 const backup=path.join(os.homedir(),'Documents','BuffetAkela','original-blob-backup-2026-10-03');
 const signed=workspace.events.filter(x=>x.contractStatus==='Assinado');
 const fetchJson=async pathname=>{const r=await fetch(base+pathname,{cache:'no-store'});let data=null;try{data=await r.json()}catch{}return{status:r.status,data}};

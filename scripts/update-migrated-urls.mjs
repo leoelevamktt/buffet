@@ -1,10 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import pg from 'pg'
+import { decryptWorkspace, encryptWorkspace } from '../api/_workspace-crypto.js'
 const url=process.argv[2]
 const backup=process.argv[3]
 if(!/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(url)||!backup)throw Error('Specify verified HTTPS deployment and backup folder.')
 const env=fs.readFileSync('.env.local','utf8')
+process.env.WORKSPACE_ENCRYPTION_KEY ||= env.match(/^WORKSPACE_ENCRYPTION_KEY=(.*)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'')
 const connection=env.match(/^DATABASE_URL=(.*)$/m)?.[1]?.trim()
 if(!connection)throw Error('DATABASE_URL unavailable')
 const client=new pg.Client({connectionString:connection,ssl:{rejectUnauthorized:true}})
@@ -15,7 +17,8 @@ try{
  const old=result.rows[0]
  if(!old)throw Error('No workspace found')
  fs.writeFileSync(path.join(backup,'neon-before-new-links.json'),JSON.stringify(old,null,2),{flag:'wx',mode:0o600})
- const data=old.data
+ const wasEncrypted=Object.hasOwn(old.data,'encrypted')
+ const data=decryptWorkspace(old.data)
  let links=0,drafts=0
  for(const event of data.events||[]){
   if(event.contractStatus==='Assinado'&&event.shareToken){
@@ -34,7 +37,7 @@ try{
    }
   }
  }
- const updated=await client.query("UPDATE buffet_workspace SET data=$1::jsonb,revision=revision+1,updated_at=now() WHERE id='main' AND revision=$2 RETURNING revision",[JSON.stringify(data),old.revision])
+ const updated=await client.query("UPDATE buffet_workspace SET data=$1::jsonb,revision=revision+1,updated_at=now() WHERE id='main' AND revision=$2 RETURNING revision",[JSON.stringify(wasEncrypted?encryptWorkspace(data):data),old.revision])
  if(!updated.rowCount)throw Error('Concurrent update detected')
  await client.query('COMMIT')
  console.log('NEON_URL_MIGRATION_OK',{contractLinks:links,expiredUnsignedAddendaResetToDraft:drafts,revision:Number(updated.rows[0].revision)})

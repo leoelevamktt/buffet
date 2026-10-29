@@ -4,6 +4,7 @@ import os from 'node:os'
 import pg from 'pg'
 import { createHash } from 'node:crypto'
 import { canonicalHash, verifyAudit, sha256 } from '../api/_audit.js'
+import { decryptWorkspace } from '../api/_workspace-crypto.js'
 const parent = path.join(os.homedir(),'Documents','BuffetAkela')
 const name = process.argv[2] || fs.readdirSync(parent).filter(n=>n.startsWith('migration-backup-')).sort().at(-1)
 if(!name) throw Error('No migration backup')
@@ -11,12 +12,14 @@ const root = path.isAbsolute(name) ? name : path.join(parent,name)
 const readJson = name => JSON.parse(fs.readFileSync(path.join(root,name),'utf8'))
 const env = fs.readFileSync('.env.local','utf8')
 const envValue = key => env.match(new RegExp('^'+key+'=(.+)$','m'))?.[1]?.trim()?.replace(/^["']|["']$/g,'')
+process.env.WORKSPACE_ENCRYPTION_KEY ||= envValue('WORKSPACE_ENCRYPTION_KEY')
 const auditKey = envValue('SIGNATURE_AUDIT_SECRET')
 if(!auditKey||auditKey.length<32)throw Error('Audit key unavailable')
 const manifest = readJson('recovery-manifest.json')
 const snapshot = readJson('neon-snapshot.json')
 const row = snapshot.tables.buffet_workspace.find(r=>r.id==='main')
 if(!row?.data)throw Error('Missing workspace snapshot')
+row.data=decryptWorkspace(row.data)
 const events=row.data.events || []
 const signed=events.filter(e=>e.contractStatus==='Assinado')
 const files=manifest.files || []
@@ -66,7 +69,7 @@ try{
  const result=await database.query("SELECT data,revision FROM buffet_workspace WHERE id='main'")
  if(!result.rows.length)throw Error('Workspace missing in live Neon')
  if(Number(result.rows[0].revision)!==Number(row.revision) ||
-  digest(Buffer.from(JSON.stringify(result.rows[0].data)))!==digest(Buffer.from(JSON.stringify(row.data))))
+  digest(Buffer.from(JSON.stringify(decryptWorkspace(result.rows[0].data))))!==digest(Buffer.from(JSON.stringify(row.data))))
   throw Error('Neon changed since backup: fresh backup required')
  risk.liveNeonRevision=Number(result.rows[0].revision)
 }finally{await database.end()}
