@@ -11,9 +11,9 @@ import quotes from '../api/quotes.js'
 import addenda from '../api/addenda.js'
 
 test('cross-site writes without an Origin header are rejected', () => {
-  assert.equal(safeOrigin({method:'POST',headers:{host:'buffetakela.vercel.app','sec-fetch-site':'cross-site'}}),false)
-  assert.equal(safeOrigin({method:'POST',headers:{host:'buffetakela.vercel.app',origin:'https://buffetakela.vercel.app'}}),true)
-  assert.equal(safeOrigin({method:'POST',headers:{host:'buffetakela.vercel.app',origin:'https://attacker.invalid'}}),false)
+  assert.equal(safeOrigin({method:'POST',headers:{host:'akelabuffet.vercel.app','sec-fetch-site':'cross-site'}}),false)
+  assert.equal(safeOrigin({method:'POST',headers:{host:'akelabuffet.vercel.app',origin:'https://akelabuffet.vercel.app'}}),true)
+  assert.equal(safeOrigin({method:'POST',headers:{host:'akelabuffet.vercel.app',origin:'https://attacker.invalid'}}),false)
 })
 
 test('public document routes reject path characters before reading private storage', async () => {

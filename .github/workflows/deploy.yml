@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const base = 'https://buffetakela.vercel.app'
+          const base = 'https://akelabuffet.vercel.app'
           async function check() {
             const home = await fetch(base, { cache: 'no-store' })
             const session = await fetch(base + '/api/session', { cache: 'no-store' })

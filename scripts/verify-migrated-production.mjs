@@ -1,5 +1,5 @@
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import{canonicalHash,verifyAudit,sha256}from'../api/_audit.js';
-const base='https://buffetakela.vercel.app';
+const base='https://akelabuffet.vercel.app';
 const content=fs.readFileSync('.env.local','utf8');
 const audit=content.match(/^SIGNATURE_AUDIT_SECRET=(.*)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'');
 const fresh=JSON.parse(fs.readFileSync(path.join(os.homedir(),'Documents','BuffetAkela','neon-fresh-before-migration-2026-10-03.json')));

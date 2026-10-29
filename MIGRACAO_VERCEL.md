@@ -1,5 +1,7 @@
 # Buffet Akela — migração entre contas Vercel
 
+Em 29/10/2026, o endereço público confirmado pelo titular é <https://akelabuffet.vercel.app>. As demais referências abaixo documentam a migração anterior.
+
 Atualização: 03/10/2026. **Migração operacional concluída e auditada; acesso administrativo confirmado pelo titular e pelo login registrado no Neon. Os arquivos privados, o domínio e a implantação automática foram verificados na nova conta.**
 
 ## Conta e ambiente de destino

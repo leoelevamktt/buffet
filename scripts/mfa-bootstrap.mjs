@@ -11,6 +11,7 @@ const client=await pool.connect()
 let wrote=false
 try {
   await client.query('BEGIN')
+  await client.query('SET LOCAL search_path TO public,pg_catalog')
   const result=await client.query("SELECT id,username,role,active,password_hash,mfa_version,mfa_secret,mfa_enabled_at FROM buffet_users WHERE username='leo' FOR UPDATE")
   const user=result.rows[0]
   if (!user || !user.active || user.role!=='admin' || user.mfa_secret || user.mfa_enabled_at) throw new Error('A conta leo não está disponível para o primeiro convite.')
@@ -23,7 +24,7 @@ try {
   await client.query("DELETE FROM buffet_mfa_challenges WHERE user_id=$1 AND stage='setup'",[user.id])
   await client.query(`INSERT INTO buffet_security_events(event,user_id,ip,user_agent,details)
     VALUES('mfa_invitation_issued',$1,'authorized-maintenance','bootstrap',jsonb_build_object('bootstrap',true))`,[user.id])
-  await writeFile(MFA_BOOTSTRAP_OUTPUT,`Convite individual de leo (válido por 30 minutos):\nhttps://buffetakela.vercel.app/#ativar-2fa=${token}\n\nAbra o link, entre com a senha de leo e siga as instruções. Guarde os códigos de recuperação em local seguro.\n`,{mode:0o600,flag:'wx'})
+  await writeFile(MFA_BOOTSTRAP_OUTPUT,`Convite individual de leo (válido por 30 minutos):\nhttps://akelabuffet.vercel.app/#ativar-2fa=${token}\n\nAbra o link, entre com a senha de leo e siga as instruções. Guarde os códigos de recuperação em local seguro.\n`,{mode:0o600,flag:'wx'})
   wrote=true
   await client.query('COMMIT')
   console.log('Convite criado para a conta escolhida.')
