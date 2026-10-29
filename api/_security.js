@@ -14,7 +14,11 @@ export async function reserveAttempt(sql, key, limit) {
 }
 
 export async function securityEvent(sql, req, event, userId=null, details={}) {
+  const country=String(req.headers['x-vercel-ip-country']||'').slice(0,2).toUpperCase()
+  let city=String(req.headers['x-vercel-ip-city']||'').slice(0,150)
+  try {city=decodeURIComponent(city).slice(0,100)} catch {city=''}
+  const context={...details,country:/^[A-Z]{2}$/.test(country)?country:null,city:city||null}
   await sql.query(`INSERT INTO buffet_security_events(event,user_id,ip,user_agent,details)
     VALUES($1,$2,$3,$4,$5::jsonb)`, [event,userId,getTrustedIp(req).ip,
-    String(req.headers['user-agent']||'').slice(0,500),JSON.stringify(details)])
+    String(req.headers['user-agent']||'').slice(0,500),JSON.stringify(context)])
 }

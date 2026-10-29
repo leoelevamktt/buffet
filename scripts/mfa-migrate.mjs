@@ -10,6 +10,7 @@ try {
   await client.query("SET LOCAL search_path TO public,pg_catalog")
   await client.query(await readFile(new URL('./neon-schema.sql',import.meta.url),'utf8'))
   await client.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON buffet_mfa_invitations,buffet_mfa_challenges,buffet_mfa_recovery_codes TO "${MFA_APP_ROLE}"`)
+  await client.query(`GRANT SELECT ON buffet_security_log_view TO "${MFA_APP_ROLE}"`)
   await client.query('COMMIT')
   console.log('Migração aditiva concluída.')
 } catch(error) {await client.query('ROLLBACK').catch(()=>{});throw error}

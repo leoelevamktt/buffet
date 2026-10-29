@@ -5,11 +5,12 @@ import { brandMark } from '../brand'
 import { browserSnapshot, initialWorkspace, normalizeWorkspace, type WorkspaceData } from '../workspace'
 import type { AccountUser } from '../auth'
 import { MfaAccess } from './MfaAccess'
+import { AdminLanding } from './AdminLanding'
 
 type Props = { children: (data: WorkspaceData, revision: number, user: AccountUser, logout: () => void) => ReactNode }
 type Loaded = { data: WorkspaceData; revision: number }
 export function WorkspaceGate({ children }: Props) {
-  const [phase, setPhase] = useState<'loading' | 'login' | 'mfa' | 'master' | 'bootstrap' | 'ready' | 'failed'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'login' | 'mfa' | 'landing' | 'master' | 'bootstrap' | 'ready' | 'failed'>('loading')
   const [mfaStage, setMfaStage] = useState('')
   const [masterPassword, setMasterPassword] = useState('')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -35,7 +36,7 @@ export function WorkspaceGate({ children }: Props) {
     }
     setUser(session.user)
     const until = new Date(session.user.master_unlocked_until || 0).getTime()
-    if (!Number.isFinite(until) || until <= Date.now()) { setLoaded(null); setPhase('master'); return }
+    if (!Number.isFinite(until) || until <= Date.now()) { setLoaded(null); setPhase('landing'); return }
     const result = await fetch('/api/workspace', { cache: 'no-store' })
     if (result.status === 401) { setPhase('login'); return }
     const body = await result.json()
@@ -105,6 +106,7 @@ export function WorkspaceGate({ children }: Props) {
     })
   }
   if (phase === 'ready' && loaded && user) return <>{children(loaded.data, loaded.revision, user, logout)}</>
+  if (phase === 'landing' && user) return <AdminLanding user={user} onProtected={()=>{setError('');setPhase('master')}} onLogout={logout}/>
   return (
     <main className="workspace-access">
       <section className="workspace-access-card">
@@ -139,7 +141,7 @@ export function WorkspaceGate({ children }: Props) {
             <label htmlFor="master-password">Senha mestra</label>
             <input id="master-password" type="password" autoComplete="off" required value={masterPassword} onChange={e=>setMasterPassword(e.target.value)}/>
             <button className="btn btn-primary" disabled={working || !masterPassword}>{working?'Validando...':'Liberar dados'}</button>
-            <button type="button" className="btn btn-quiet" onClick={logout}>Sair</button>
+            <button type="button" className="btn btn-quiet" onClick={()=>{setMasterPassword('');setError('');setPhase('landing')}}>Voltar ao painel</button>
           </form></>}
         {phase === 'bootstrap' && <>
           <div className="workspace-intro-icon"><Database size={25}/></div>

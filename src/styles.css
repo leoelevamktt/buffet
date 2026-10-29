@@ -67,6 +67,21 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .metric-card small{font-size:10px;color:#8b8f89;margin-top:auto}
 .dashboard-grid{display:grid;grid-template-columns:1.05fr 1.4fr;gap:18px;margin-top:18px}
 .panel{background:var(--paper);border:1px solid var(--line)}
+.access-log-row{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.access-log-row>div{display:flex;flex-direction:column;gap:5px;min-width:0;overflow-wrap:anywhere;font-size:12px}
+.access-log-row>div:first-child svg{color:var(--green)}
+.access-log-row span{color:var(--ink-soft);font-size:11px}
+@media(max-width:760px){.access-log-row{grid-template-columns:1fr 1fr}}
+.admin-landing{min-height:100vh}
+.admin-landing-header{display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;padding:16px 32px}
+.admin-landing-header img{width:48px;height:48px;object-fit:contain}
+.admin-landing-header div{display:flex;flex:1;flex-direction:column;gap:3px}
+.admin-landing-header span{font-size:12px;color:#c1c9c2}
+.admin-landing-header .btn{color:white;border-color:#788077}
+.admin-landing-nav{display:flex;gap:8px;flex-wrap:wrap;padding:16px 32px;border-bottom:1px solid var(--line)}
+.admin-landing-intro{padding:32px;max-width:720px}
+.admin-landing-intro h1{font-family:Georgia,serif;font-weight:400;font-size:32px}
+.admin-landing-intro p{color:var(--ink-soft);line-height:1.6}
 .panel-head{display:flex;justify-content:space-between;align-items:flex-start;padding:23px 24px 14px}
 .panel-head h3{font-size:15px;margin:4px 0 0}
 .muted{color:#858b85;font-size:11px}

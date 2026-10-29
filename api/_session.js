@@ -64,12 +64,12 @@ export async function requireSensitive(req,res,role) {
   }
   return user
 }
-export async function requireAdmin(req,res,role) {
+export async function requireAdmin(req,res,role,audit=true) {
   if (!safeOrigin(req)) {res.status(403).json({error:'Origem não autorizada.'});return null}
   const user=await getSession(req)
   if (!user) {res.status(401).json({error:'Sessão ausente ou expirada. Entre novamente.'});return null}
   if (role && user.role!==role) {res.status(403).json({error:'Somente administradores podem acessar esta área.'});return null}
-  await securityEvent(database(),req,'admin_request',user.id,{
+  if (audit) await securityEvent(database(),req,'admin_request',user.id,{
     method:req.method,path:String(req.url||'').split('?')[0].slice(0,100)
   })
   return user

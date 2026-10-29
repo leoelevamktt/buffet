@@ -14,6 +14,7 @@ import { uid } from './storage'
 import { WorkspaceGate } from './components/WorkspaceGate'
 import { UsersView } from './components/UsersView'
 import { ProfileView } from './components/ProfileView'
+import { LogsView, recordSection } from './components/LogsView'
 import { AddendumManager } from './components/AddendumManager'
 import { AddendumDocument } from './components/AddendumDocument'
 import { sanitizeAddendumHtml } from './addenda'
@@ -45,6 +46,7 @@ const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'settings', label: 'Configurações', icon: Settings },
   { id: 'users', label: 'Usuários', icon: Users },
+  { id: 'logs', label: 'Registros de acesso', icon: ShieldCheck },
   { id: 'profile', label: 'Minha conta', icon: UserRound }
 ]
 
@@ -128,6 +130,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
   initialWorkspace: WorkspaceData; initialRevision: number; currentUser: AccountUser; onLogout: () => void
 }) {
   const [section, setSection] = useState<Section>('dashboard')
+  useEffect(()=>{recordSection(section)},[section])
   const [events, setEvents] = useState<BuffetEvent[]>(initialWorkspace.events)
   const [clients, setClients] = useState<Client[]>(initialWorkspace.clients)
   const [menus, setMenus] = useState<MenuItem[]>(initialWorkspace.menus)
@@ -524,6 +527,7 @@ function AdminApp({ initialWorkspace, initialRevision, currentUser, onLogout }: 
           {section === 'agenda' && <AgendaView events={events} />}
           {section === 'settings' && <SettingsView settings={settings} setSettings={setSettings} notify={notify} />}
           {section === 'users' && currentUser.role === 'admin' && <UsersView current={currentUser} notify={notify} />}
+          {section === 'logs' && currentUser.role === 'admin' && <LogsView />}
           {section === 'profile' && <ProfileView user={currentUser} onPasswordChanged={onLogout} />}
         </div>
       </main>
@@ -614,7 +618,7 @@ function Sidebar({ section, onNavigate, onNewEvent, settings, currentUser }: {
       <button className="new-event-button" onClick={onNewEvent}><Plus size={18} /> Novo evento</button>
       <nav className="side-nav">
         <span className="nav-label">ESPAÇO DE TRABALHO</span>
-        {navItems.filter((item) => item.id !== 'users' || currentUser.role === 'admin').map(({ id, label, icon: Icon }) => (
+        {navItems.filter((item) => !['users','logs'].includes(item.id) || currentUser.role === 'admin').map(({ id, label, icon: Icon }) => (
           <button key={id} className={section === id ? 'nav-item active' : 'nav-item'} onClick={() => onNavigate(id)}>
             <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
           </button>

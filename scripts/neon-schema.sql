@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS buffet_security_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_buffet_security_events_time ON buffet_security_events(created_at);
+CREATE OR REPLACE VIEW buffet_security_log_view AS
+  SELECT e.id,e.created_at,e.event,e.ip,e.user_agent,u.username,
+    e.details->>'country' AS country,e.details->>'city' AS city,
+    e.details->>'section' AS section,e.details->>'path' AS path,
+    e.details->>'method' AS method
+  FROM buffet_security_events e LEFT JOIN buffet_users u ON u.id=e.user_id;
 
 ALTER TABLE buffet_users ADD COLUMN IF NOT EXISTS mfa_secret text,
   ADD COLUMN IF NOT EXISTS mfa_version integer NOT NULL DEFAULT 0,

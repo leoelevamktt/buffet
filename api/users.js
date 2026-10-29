@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { database } from './_db.js'
-import { requireSensitive } from './_session.js'
+import { requireAdmin } from './_session.js'
 import { passwordHash, validPassword } from './_password.js'
 
 const validUsername = (v) => typeof v==='string' && /^[a-z][a-z0-9._-]{2,39}$/.test(v)
@@ -13,7 +13,7 @@ const responseUser = (r) => r // explicit selection excludes password hash
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','no-store')
   let user
-  try { user=await requireSensitive(req,res,'admin') } catch (error) {
+  try { user=await requireAdmin(req,res,'admin') } catch (error) {
     console.error('user_auth_error',error.message)
     return res.status(500).json({error:'Falha temporária de autenticação.'})
   }
