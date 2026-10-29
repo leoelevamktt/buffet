@@ -1,6 +1,6 @@
 import { del, get, put } from '@vercel/blob'
 import { randomBytes } from 'node:crypto'
-import { requireAdmin } from './_session.js'
+import { requireSensitive } from './_session.js'
 import { isCode } from './_audit.js'
 
 const pathnameFor = (token) => 'quotes/' + token + '.json'
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      if (!(await requireAdmin(req, res))) return
+      if (!(await requireSensitive(req, res))) return
       const token = String(req.query.token || '')
       if (!isCode(token)) return res.status(400).json({ error: 'Link de orçamento inválido.' })
       await del(pathnameFor(token))
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      if (!(await requireAdmin(req, res))) return
+      if (!(await requireSensitive(req, res))) return
       const { event, menu, services, settings, total, contractTemplate } = req.body || {}
       if (!event?.id || !event?.clientName || !settings?.businessName) {
         return res.status(400).json({ error: 'Dados obrigatórios do orçamento não foram informados.' })

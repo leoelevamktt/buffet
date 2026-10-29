@@ -4,11 +4,14 @@ import { ArrowRight, Cloud, Database, Eye, EyeOff, Lock, ShieldCheck } from 'luc
 import { brandMark } from '../brand'
 import { browserSnapshot, initialWorkspace, normalizeWorkspace, type WorkspaceData } from '../workspace'
 import type { AccountUser } from '../auth'
+import { MfaAccess } from './MfaAccess'
 
 type Props = { children: (data: WorkspaceData, revision: number, user: AccountUser, logout: () => void) => ReactNode }
 type Loaded = { data: WorkspaceData; revision: number }
 export function WorkspaceGate({ children }: Props) {
-  const [phase, setPhase] = useState<'loading' | 'login' | 'bootstrap' | 'ready' | 'failed'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'login' | 'mfa' | 'master' | 'bootstrap' | 'ready' | 'failed'>('loading')
+  const [mfaStage, setMfaStage] = useState('')
+  const [masterPassword, setMasterPassword] = useState('')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('admin')
@@ -24,8 +27,15 @@ export function WorkspaceGate({ children }: Props) {
     const status = await fetch('/api/session', { cache: 'no-store' })
     if (!status.ok) throw new Error('Autenticação do servidor indisponível. Verifique as configurações do painel.')
     const session = await status.json()
-    if (!session.authenticated || !session.user) { setUser(null); setPhase('login'); return }
+    if (!session.authenticated || !session.user) {
+      setUser(null)
+      if (session.mfaStage) { setMfaStage(session.mfaStage); setPhase('mfa') }
+      else setPhase('login')
+      return
+    }
     setUser(session.user)
+    const until = new Date(session.user.master_unlocked_until || 0).getTime()
+    if (!Number.isFinite(until) || until <= Date.now()) { setLoaded(null); setPhase('master'); return }
     const result = await fetch('/api/workspace', { cache: 'no-store' })
     if (result.status === 401) { setPhase('login'); return }
     const body = await result.json()
@@ -46,6 +56,17 @@ export function WorkspaceGate({ children }: Props) {
     setPhase('ready')
   }
   useEffect(() => { void load().catch((err) => { setError(err.message); setPhase('failed') }) }, [])
+  const unlock = async (event: FormEvent) => {
+    event.preventDefault(); if (working) return
+    setWorking(true); setError('')
+    try {
+      const response=await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:masterPassword})})
+      const body=await response.json()
+      if (!response.ok) throw new Error(body.error || 'Não foi possível liberar os dados.')
+      setMasterPassword(''); await load()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao liberar os dados.') }
+    finally { setWorking(false) }
+  }
 
   const login = async (event: FormEvent) => {
     event.preventDefault()
@@ -80,7 +101,7 @@ export function WorkspaceGate({ children }: Props) {
   }
   const logout = () => {
     void fetch('/api/session', { method: 'DELETE' }).finally(() => {
-      setLoaded(null); setUser(null); setPhase('login'); setPassword('')
+      setLoaded(null); setUser(null); setPhase('login'); setPassword(''); setMasterPassword('')
     })
   }
   if (phase === 'ready' && loaded && user) return <>{children(loaded.data, loaded.revision, user, logout)}</>
@@ -109,6 +130,17 @@ export function WorkspaceGate({ children }: Props) {
             </button>
           </form>
         </>}
+        {phase === 'mfa' && <MfaAccess initialStage={mfaStage}
+          onComplete={()=>{setPhase('loading');void load().catch(e=>{setError(e.message);setPhase('failed')})}}
+          onCancel={logout}/>}
+        {phase === 'master' && <><h1>Dados protegidos</h1>
+          <p>Informe a senha mestra para acessar os dados pessoais e financeiros nesta sessão.</p>
+          <form className="workspace-access-form" onSubmit={e=>void unlock(e)}>
+            <label htmlFor="master-password">Senha mestra</label>
+            <input id="master-password" type="password" autoComplete="off" required value={masterPassword} onChange={e=>setMasterPassword(e.target.value)}/>
+            <button className="btn btn-primary" disabled={working || !masterPassword}>{working?'Validando...':'Liberar dados'}</button>
+            <button type="button" className="btn btn-quiet" onClick={logout}>Sair</button>
+          </form></>}
         {phase === 'bootstrap' && <>
           <div className="workspace-intro-icon"><Database size={25}/></div>
           <h1>Preparar armazenamento Neon</h1>

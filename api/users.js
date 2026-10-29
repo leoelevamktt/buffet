@@ -1,19 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { database } from './_db.js'
-import { requireAdmin } from './_session.js'
+import { requireSensitive } from './_session.js'
 import { passwordHash, validPassword } from './_password.js'
 
 const validUsername = (v) => typeof v==='string' && /^[a-z][a-z0-9._-]{2,39}$/.test(v)
 const validName = (v) => typeof v==='string' && v.trim().length>=3 && v.trim().length<=100
 const validEmail = (v) => !v || (typeof v==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && v.length<=254)
 const uuid = (v) => typeof v==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v)
-const fields = 'id, username, name, email, role, active, created_at, updated_at, last_login_at'
+const fields = 'id, username, name, email, role, active, created_at, updated_at, last_login_at, mfa_enabled_at'
 const responseUser = (r) => r // explicit selection excludes password hash
 
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','no-store')
   let user
-  try { user=await requireAdmin(req,res,'admin') } catch (error) {
+  try { user=await requireSensitive(req,res,'admin') } catch (error) {
     console.error('user_auth_error',error.message)
     return res.status(500).json({error:'Falha temporária de autenticação.'})
   }

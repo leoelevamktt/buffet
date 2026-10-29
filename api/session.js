@@ -1,5 +1,7 @@
 import { database } from './_db.js'
-import { clearSession, createSession, getSession, safeOrigin, sessionConfigured } from './_session.js'
+import { clearSession, getSession, safeOrigin, sessionConfigured } from './_session.js'
+import { beginMfa, pendingMfa, challengeHash, clearChallengeCookie } from './_mfa.js'
+import { mfaConfigured } from './_mfa-crypto.js'
 import { passwordVerify } from './_password.js'
 import { createHmac } from 'node:crypto'
 import { getTrustedIp } from './_audit.js'
@@ -8,16 +10,20 @@ import { reserveAttempt, securityEvent } from './_security.js'
 const anonymousMessage = 'Usuário ou senha incorretos.'
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','no-store')
-  if (!sessionConfigured()) return res.status(503).json({error:'Acesso administrativo não configurado.'})
+  if (!sessionConfigured() || !mfaConfigured()) return res.status(503).json({error:'Acesso administrativo não configurado.'})
   if (!safeOrigin(req)) return res.status(403).json({error:'Origem não autorizada.'})
   try {
     if (req.method==='GET') {
       const user=await getSession(req)
-      return res.status(200).json({authenticated:Boolean(user),user})
+      const pending = user ? null : await pendingMfa(req)
+      return res.status(200).json({authenticated:Boolean(user),user,mfaStage:pending?.stage || null})
     }
     if (req.method==='DELETE') {
       const user=await getSession(req)
       await clearSession(req,res)
+      const challenge = challengeHash(req)
+      if (challenge) await database().query('DELETE FROM buffet_mfa_challenges WHERE token_hash=$1',[challenge])
+      clearChallengeCookie(res)
       if (user) await securityEvent(database(),req,'logout',user.id)
       return res.status(200).json({authenticated:false})
     }
@@ -47,14 +53,10 @@ export default async function handler(req,res) {
       await securityEvent(sql,req,'login_failure',user?.id)
       return res.status(401).json({error:anonymousMessage})
     }
-    if (!(await createSession(res,user.id,user.password_hash)))
-      return res.status(401).json({error:anonymousMessage})
-    await securityEvent(sql,req,'login_success',user.id)
-    await sql.query('DELETE FROM buffet_login_attempts WHERE ip=$1 OR updated_at<now()-interval \'1 day\'',[accountKey])
-    await sql.query('UPDATE buffet_users SET last_login_at=now() WHERE id=$1',[user.id])
-    await sql.query('DELETE FROM buffet_sessions WHERE expires_at<now()')
-    const {password_hash,...safe}=user
-    return res.status(200).json({authenticated:true,user:safe})
+    const stage=await beginMfa(res,user)
+    if (!stage) return res.status(401).json({error:anonymousMessage})
+    await securityEvent(sql,req,'login_password_verified',user.id)
+    return res.status(200).json({authenticated:false,mfaStage:stage})
   } catch(error) {
     console.error('session_error',error.message)
     return res.status(500).json({error:'Falha temporária de autenticação.'})

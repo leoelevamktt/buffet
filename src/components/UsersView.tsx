@@ -24,6 +24,10 @@ export function UsersView({ current, notify }: Props) {
   const [error,setError]=useState('')
   const [showPassword,setShowPassword]=useState(false)
   const [confirm,setConfirm]=useState('')
+  const [inviteUser,setInviteUser]=useState<AccountUser|null>(null)
+  const [invitePassword,setInvitePassword]=useState('')
+  const [inviteCode,setInviteCode]=useState('')
+  const [inviteLink,setInviteLink]=useState('')
   const load=async () => {
     setError('');setLoading(true)
     try {
@@ -76,6 +80,18 @@ export function UsersView({ current, notify }: Props) {
     finally{setBusy(false)}
   }
   const filtered=users.filter(u=>[u.name,u.username,u.email||''].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const invite=async (event:FormEvent)=>{
+    event.preventDefault();if(!inviteUser||busy)return
+    setBusy(true);setError('')
+    try{
+      const r=await fetch('/api/mfa',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'invite',targetId:inviteUser.id,password:invitePassword,code:inviteCode})})
+      const body=await r.json();if(!r.ok)throw new Error(body.error||'Não foi possível criar o convite.')
+      setInvitePassword('');setInviteCode('')
+      setInviteLink(window.location.origin+'/#ativar-2fa='+encodeURIComponent(body.invitation))
+    }catch(e){setError(e instanceof Error?e.message:'Falha de conexão.')}
+    finally{setBusy(false)}
+  }
   return (
     <div className="users-page">
       <div className="section-intro">
@@ -108,9 +124,11 @@ export function UsersView({ current, notify }: Props) {
             <div className="users-tags">
               <span className={'users-role '+user.role}>{user.role==='admin'?'Administrador':'Operador'}</span>
               <span className={'users-active '+(user.active?'on':'off')}>{user.active?'Ativo':'Inativo'}</span>
+              <span className="users-role">{user.mfa_enabled_at?'2FA ativo':'2FA pendente'}</span>
             </div>
             <div className="users-actions">
               <button className="btn btn-quiet" onClick={()=>open(user)}>Editar</button>
+              {user.active&&!user.mfa_enabled_at&&<button className="btn btn-quiet" onClick={()=>{setInviteUser(user);setInviteLink('');setError('')}}>Autorizar 2FA</button>}
               {user.id!==current.id&&<button className="btn btn-quiet" disabled={busy}
                 onClick={()=>void toggle(user)}>
                 {user.active?<UserRoundX size={15}/>:<Check size={15}/>}
@@ -120,6 +138,19 @@ export function UsersView({ current, notify }: Props) {
           </div>):<div className="users-empty">Nenhum usuário encontrado.</div>}
       </section>
       {error&&!form&&<p className="users-error" role="alert"><CircleAlert size={17}/>{error}</p>}
+      {inviteUser&&<div className="modal-backdrop users-modal-backdrop"><div className="users-modal">
+        <h2>Autorizar 2FA de {inviteUser.name}</h2>
+        {inviteLink?<><p>Envie o link por um canal privado diretamente à pessoa. Ele expira em 30 minutos e só funciona junto à senha da conta.</p>
+          <input readOnly value={inviteLink} aria-label="Link individual de ativação"/>
+          <button className="btn btn-quiet" onClick={()=>void navigator.clipboard.writeText(inviteLink)}>Copiar link</button></>:
+          <form className="users-form" onSubmit={e=>void invite(e)}>
+            <label htmlFor="invite-password">Sua senha</label><input id="invite-password" type="password" autoComplete="current-password" required value={invitePassword} onChange={e=>setInvitePassword(e.target.value)}/>
+            <label htmlFor="invite-code">Código do seu autenticador</label><input id="invite-code" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={inviteCode} onChange={e=>setInviteCode(e.target.value)}/>
+            <button className="btn btn-primary" disabled={busy}>Criar convite</button>
+          </form>}
+        {error&&<p className="users-error" role="alert">{error}</p>}
+        <button className="btn btn-quiet" onClick={()=>{setInviteUser(null);setInviteLink('');setInvitePassword('');setInviteCode('');setError('')}}>Fechar</button>
+      </div></div>}
       {form&&<div className="modal-backdrop users-modal-backdrop">
         <form className="users-modal" onSubmit={(event)=>void submit(event)}>
           <header className="users-modal-heading"><div><span className="eyebrow">ADMINISTRAÇÃO</span>

@@ -11,6 +11,19 @@ export function ProfileView({ user, onPasswordChanged }: Props) {
   const [visible,setVisible]=useState(false)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
+  const [recoveryPassword,setRecoveryPassword]=useState('')
+  const [recoveryCode,setRecoveryCode]=useState('')
+  const [recoveryCodes,setRecoveryCodes]=useState<string[]>([])
+  const regenerate=async(event:FormEvent)=>{
+    event.preventDefault();setBusy(true);setError('')
+    try{
+      const r=await fetch('/api/mfa',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'regenerate_codes',password:recoveryPassword,code:recoveryCode})})
+      const body=await r.json();if(!r.ok)throw new Error(body.error||'Não foi possível gerar os códigos.')
+      setRecoveryPassword('');setRecoveryCode('');setRecoveryCodes(body.recoveryCodes)
+    }catch(err){setError(err instanceof Error?err.message:'Falha de conexão.')}
+    finally{setBusy(false)}
+  }
   const submit=async(event:FormEvent)=>{
     event.preventDefault()
     if(next!==confirm){setError('A confirmação não corresponde à nova senha.');return}
@@ -37,6 +50,16 @@ export function ProfileView({ user, onPasswordChanged }: Props) {
           <div><span>Perfil</span><strong>{user.role==='admin'?'Administrador':'Operador'}</strong></div>
           {user.email&&<div><span>E-mail</span><strong>{user.email}</strong></div>}
         </div>
+      </section>
+      <section className="panel profile-password"><div className="profile-subhead"><ShieldCheck size={20}/><h3>Códigos de recuperação</h3></div>
+        {recoveryCodes.length?<><p>Guarde estes códigos em local seguro. Os anteriores deixaram de funcionar.</p>
+          <pre>{recoveryCodes.join('\n')}</pre><button className="btn btn-quiet" onClick={()=>void navigator.clipboard.writeText(recoveryCodes.join('\n'))}>Copiar códigos</button>
+          <button className="btn btn-primary" onClick={()=>setRecoveryCodes([])}>Já guardei</button></>:
+          <form onSubmit={e=>void regenerate(e)}><p>Para gerar novos códigos, confirme sua senha e o código atual do autenticador.</p>
+            <div className="field"><label htmlFor="recovery-password">Senha atual</label><input id="recovery-password" type="password" required autoComplete="current-password" value={recoveryPassword} onChange={e=>setRecoveryPassword(e.target.value)}/></div>
+            <div className="field"><label htmlFor="recovery-code">Código do autenticador</label><input id="recovery-code" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={recoveryCode} onChange={e=>setRecoveryCode(e.target.value)}/></div>
+            <button className="btn btn-primary" disabled={busy}>Gerar novos códigos</button>
+          </form>}
       </section>
       <section className="panel profile-password">
         <div><div className="profile-subhead"><LockKeyhole size={20}/><h3>Alterar minha senha</h3></div>
