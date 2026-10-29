@@ -84,7 +84,7 @@ export function UsersView({ current, notify }: Props) {
     event.preventDefault();if(!inviteUser||busy)return
     setBusy(true);setError('')
     try{
-      const r=await fetch('/api/mfa',{method:'POST',headers:{'Content-Type':'application/json'},
+      const r=await fetch('/api/session?flow=mfa',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action:'invite',targetId:inviteUser.id,password:invitePassword,code:inviteCode})})
       const body=await r.json();if(!r.ok)throw new Error(body.error||'Não foi possível criar o convite.')
       setInvitePassword('');setInviteCode('')

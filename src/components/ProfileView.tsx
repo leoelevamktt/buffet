@@ -17,7 +17,7 @@ export function ProfileView({ user, onPasswordChanged }: Props) {
   const regenerate=async(event:FormEvent)=>{
     event.preventDefault();setBusy(true);setError('')
     try{
-      const r=await fetch('/api/mfa',{method:'POST',headers:{'Content-Type':'application/json'},
+      const r=await fetch('/api/session?flow=mfa',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action:'regenerate_codes',password:recoveryPassword,code:recoveryCode})})
       const body=await r.json();if(!r.ok)throw new Error(body.error||'Não foi possível gerar os códigos.')
       setRecoveryPassword('');setRecoveryCode('');setRecoveryCodes(body.recoveryCodes)

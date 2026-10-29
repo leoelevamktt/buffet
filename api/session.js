@@ -6,9 +6,13 @@ import { passwordVerify } from './_password.js'
 import { createHmac } from 'node:crypto'
 import { getTrustedIp } from './_audit.js'
 import { reserveAttempt, securityEvent } from './_security.js'
+import mfaHandler from './_mfa-handler.js'
+import masterHandler from './_master.js'
 
 const anonymousMessage = 'Usuário ou senha incorretos.'
 export default async function handler(req,res) {
+  if (req.query?.flow === 'mfa') return mfaHandler(req,res)
+  if (req.query?.flow === 'master') return masterHandler(req,res)
   res.setHeader('Cache-Control','no-store')
   if (!sessionConfigured() || !mfaConfigured()) return res.status(503).json({error:'Acesso administrativo não configurado.'})
   if (!safeOrigin(req)) return res.status(403).json({error:'Origem não autorizada.'})

@@ -60,7 +60,7 @@ export function WorkspaceGate({ children }: Props) {
     event.preventDefault(); if (working) return
     setWorking(true); setError('')
     try {
-      const response=await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:masterPassword})})
+      const response=await fetch('/api/session?flow=master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:masterPassword})})
       const body=await response.json()
       if (!response.ok) throw new Error(body.error || 'Não foi possível liberar os dados.')
       setMasterPassword(''); await load()

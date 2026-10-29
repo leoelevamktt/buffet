@@ -17,7 +17,7 @@ export function MfaAccess({ initialStage, onComplete, onCancel }: Props) {
   },[])
   useEffect(()=>{
     if(stage!=='setup')return
-    void fetch('/api/mfa',{cache:'no-store'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error);setDisplay(body)})
+    void fetch('/api/session?flow=mfa',{cache:'no-store'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error);setDisplay(body)})
       .catch(e=>setError(e.message||'Não foi possível iniciar a configuração.'))
   },[stage])
   const submit=async(e:FormEvent)=>{
@@ -25,7 +25,7 @@ export function MfaAccess({ initialStage, onComplete, onCancel }: Props) {
     setBusy(true);setError('')
     try{
       const action=stage==='invite'?'activate':stage==='setup'?'enroll':recovery?'recover':'verify'
-      const r=await fetch('/api/mfa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,code,invitation})})
+      const r=await fetch('/api/session?flow=mfa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,code,invitation})})
       const body=await r.json();if(!r.ok)throw new Error(body.error||'Não foi possível validar o código.')
       setCode('');setInvitation('')
       if(body.recoveryCodes){setCodes(body.recoveryCodes);setStage('codes')}
