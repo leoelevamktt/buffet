@@ -7,6 +7,7 @@ import { passwordVerify } from './_password.js'
 import { reserveAttempt, securityEvent } from './_security.js'
 
 const failure = 'Código inválido, expirado ou já utilizado.'
+const restartLogin = {error:'A verificação foi encerrada. Entre novamente para continuar.',restartLogin:true}
 const uuid = value => typeof value === 'string' && /^[a-f0-9-]{36}$/i.test(value)
 
 async function lockedChallenge(client, tokenHash) {
@@ -50,7 +51,7 @@ export default async function handler(req,res) {
       const ids=action==='invite'?[actor.id,req.body.targetId]:[actor.id]
       const rows=await client.query('SELECT * FROM buffet_users WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[ids])
       const user=rows.rows.find(r=>r.id===actor.id), target=rows.rows.find(r=>r.id===req.body.targetId)
-      const sessionRow=await client.query('SELECT master_unlocked_until FROM buffet_sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now() AND mfa_version=$3 AND mfa_verified_at IS NOT NULL',
+      const sessionRow=await client.query('SELECT 1 FROM buffet_sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now() AND mfa_version=$3 AND mfa_verified_at IS NOT NULL',
         [sessionTokenHash(req),actor.id,user?.mfa_version ?? -1])
       const blocked=await reserveAttempt(client,'mfa:'+actor.id,8)
       const counter=user?.mfa_secret && totpCounter(decryptSecret(user.id,user.mfa_secret),req.body.code,user.mfa_last_counter)
@@ -80,7 +81,7 @@ export default async function handler(req,res) {
         await client.query('UPDATE buffet_users SET mfa_version=$2 WHERE id=$1',[user.id,version])
         await client.query('DELETE FROM buffet_sessions WHERE user_id=$1',[user.id])
         await client.query('DELETE FROM buffet_mfa_challenges WHERE user_id=$1',[user.id])
-        session=await createSession(client,user.id,user.password_hash,version,sessionRow.rows[0].master_unlocked_until)
+        session=await createSession(client,user.id,user.password_hash,version)
         if (!session) throw new Error('Falha ao criar sessão.')
         await securityEvent(client,req,'mfa_recovery_codes_regenerated',user.id)
         payload={recoveryCodes:codes}
@@ -91,15 +92,15 @@ export default async function handler(req,res) {
       return res.status(200).json(payload)
     }
     const tokenHash=challengeHash(req)
-    if (!tokenHash) return res.status(401).json({error:'Entre novamente para continuar.'})
+    if (!tokenHash) return res.status(401).json(restartLogin)
     client=await sql.connect(); await client.query('BEGIN')
     const locked=await lockedChallenge(client,tokenHash)
-    if (!locked) {await client.query('ROLLBACK');clearChallengeCookie(res);return res.status(401).json({error:'Entre novamente para continuar.'})}
+    if (!locked) {await client.query('ROLLBACK');clearChallengeCookie(res);return res.status(401).json(restartLogin)}
     const {user,challenge}=locked
     if (req.method==='GET') {
       if (challenge.stage==='setup' && challenge.auth_method==='invitation' && !(await liveInvite(client,user,challenge.invitation_hash))) {
         await client.query('DELETE FROM buffet_mfa_challenges WHERE token_hash=$1',[tokenHash]);await client.query('COMMIT')
-        clearChallengeCookie(res);return res.status(401).json({error:'Convite expirado. Entre novamente.'})
+        clearChallengeCookie(res);return res.status(401).json({...restartLogin,error:'Convite expirado. Solicite outro e entre novamente.'})
       }
       const display=challenge.stage==='setup' ? await enrollmentDisplay(user.username,decryptSecret(user.id,challenge.pending_secret)) : {}
       await client.query('COMMIT');return res.status(200).json({stage:challenge.stage,username:user.username,...display})

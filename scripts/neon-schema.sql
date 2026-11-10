@@ -55,8 +55,7 @@ ALTER TABLE buffet_users ADD COLUMN IF NOT EXISTS mfa_secret text,
   ADD COLUMN IF NOT EXISTS mfa_enabled_at timestamptz,
   ADD COLUMN IF NOT EXISTS mfa_last_counter bigint;
 ALTER TABLE buffet_sessions ADD COLUMN IF NOT EXISTS mfa_version integer,
-  ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz,
-  ADD COLUMN IF NOT EXISTS master_unlocked_until timestamptz;
+  ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS buffet_mfa_invitations (
   user_id uuid PRIMARY KEY REFERENCES buffet_users(id) ON DELETE CASCADE,

@@ -72,16 +72,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .access-log-row>div:first-child svg{color:var(--green)}
 .access-log-row span{color:var(--ink-soft);font-size:11px}
 @media(max-width:760px){.access-log-row{grid-template-columns:1fr 1fr}}
-.admin-landing{min-height:100vh}
-.admin-landing-header{display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;padding:16px 32px}
-.admin-landing-header img{width:48px;height:48px;object-fit:contain}
-.admin-landing-header div{display:flex;flex:1;flex-direction:column;gap:3px}
-.admin-landing-header span{font-size:12px;color:#c1c9c2}
-.admin-landing-header .btn{color:white;border-color:#788077}
-.admin-landing-nav{display:flex;gap:8px;flex-wrap:wrap;padding:16px 32px;border-bottom:1px solid var(--line)}
-.admin-landing-intro{padding:32px;max-width:720px}
-.admin-landing-intro h1{font-family:Georgia,serif;font-weight:400;font-size:32px}
-.admin-landing-intro p{color:var(--ink-soft);line-height:1.6}
 .panel-head{display:flex;justify-content:space-between;align-items:flex-start;padding:23px 24px 14px}
 .panel-head h3{font-size:15px;margin:4px 0 0}
 .muted{color:#858b85;font-size:11px}
@@ -1056,16 +1046,18 @@ td strong{font-size:11px}
 .workspace-access{min-height:100dvh;background:radial-gradient(circle at 20% 10%,#354c3b 0,#1c2920 50%,#152019 100%);padding:36px 16px;display:flex;align-items:center;justify-content:center}
 .workspace-access-card{background:#fff;border:1px solid #d7ded4;box-shadow:0 22px 80px #09130c6b;padding:38px;width:min(500px,100%);display:flex;flex-direction:column;gap:13px;color:#26392b}
 .workspace-access-logo{height:122px;width:150px;object-fit:contain;margin:0 auto 12px}
-.workspace-access-eyebrow{display:flex;align-items:center;justify-content:center;gap:7px;color:#977e56;font-size:10px;letter-spacing:.11em;font-weight:800;text-align:center}
 .workspace-access-card h1{font:400 clamp(27px,4vw,35px)/1.14 Georgia,serif;text-align:center;margin:9px 0 0;color:#1a2b20}
 .workspace-access-card>p{font-size:12px;line-height:1.65;text-align:center;color:#69776b;margin:0 0 10px}
 .workspace-access-form{display:flex;flex-direction:column;gap:12px;margin:12px 0}
-.workspace-access-form>label{font-weight:700;font-size:11px}
+.workspace-access-form>label{font-weight:700;font-size:13px}
+.workspace-access-form>.input{width:100%;min-height:50px;padding:0 13px;border:1px solid #cdd8cc;background:#fbfcf8;color:inherit;font-size:16px}
+.workspace-access-form>.input:focus-visible,.workspace-password:focus-within{outline:2px solid #425a46;outline-offset:2px}
+.workspace-access-qr{align-self:center;max-width:100%;height:auto}
 .workspace-password{display:flex;align-items:center;gap:11px;border:1px solid #cdd8cc;background:#fbfcf8;padding:0 13px}
-.workspace-password input{flex:1;width:100%;min-height:50px;border:0;background:transparent;outline:none;font-size:14px}
+.workspace-password input{flex:1;width:100%;min-height:50px;border:0;background:transparent;outline:none;font-size:16px}
 .workspace-password button{background:transparent;border:0;cursor:pointer;min-width:36px;min-height:44px;display:grid;place-items:center;color:#425a46}
 .workspace-access-form>.btn{min-height:49px;justify-content:center;gap:9px}
-.workspace-access-card footer{display:flex;align-items:center;gap:6px;justify-content:center;color:#849183;font-size:10px;border-top:1px solid #e3e6df;padding-top:16px;margin-top:14px}
+.workspace-access-card footer{display:flex;align-items:center;gap:6px;justify-content:center;color:#5f705f;font-size:11px;border-top:1px solid #e3e6df;padding-top:16px;margin-top:14px}
 .workspace-access-error{padding:11px!important;margin:0!important;text-align:left!important;border:1px solid #e8bcb5;background:#fdf0ec;color:#9a4637!important;font-size:11px!important}
 .workspace-intro-icon{width:52px;height:52px;display:grid;place-items:center;color:#2a5941;background:#eaf3ea;margin:0 auto}
 .workspace-choice{width:100%;min-height:82px;display:flex;align-items:center;gap:13px;text-align:left;border:1px solid #d5dfd3;background:#fcfdf9;padding:15px;color:#2c4533}

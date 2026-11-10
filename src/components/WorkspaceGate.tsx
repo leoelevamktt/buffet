@@ -5,17 +5,14 @@ import { brandMark } from '../brand'
 import { browserSnapshot, initialWorkspace, normalizeWorkspace, type WorkspaceData } from '../workspace'
 import type { AccountUser } from '../auth'
 import { MfaAccess } from './MfaAccess'
-import { AdminLanding } from './AdminLanding'
 
 type Props = { children: (data: WorkspaceData, revision: number, user: AccountUser, logout: () => void) => ReactNode }
 type Loaded = { data: WorkspaceData; revision: number }
 export function WorkspaceGate({ children }: Props) {
-  const [phase, setPhase] = useState<'loading' | 'login' | 'mfa' | 'landing' | 'master' | 'bootstrap' | 'ready' | 'failed'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'login' | 'mfa' | 'bootstrap' | 'ready' | 'failed'>('loading')
   const [mfaStage, setMfaStage] = useState('')
-  const [masterPassword, setMasterPassword] = useState('')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
-  const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('admin')
+  const [username, setUsername] = useState('')
   const [user, setUser] = useState<AccountUser | null>(null)
   const [visible, setVisible] = useState(false)
   const [error, setError] = useState('')
@@ -35,8 +32,6 @@ export function WorkspaceGate({ children }: Props) {
       return
     }
     setUser(session.user)
-    const until = new Date(session.user.master_unlocked_until || 0).getTime()
-    if (!Number.isFinite(until) || until <= Date.now()) { setLoaded(null); setPhase('landing'); return }
     const result = await fetch('/api/workspace', { cache: 'no-store' })
     if (result.status === 401) { setPhase('login'); return }
     const body = await result.json()
@@ -57,21 +52,13 @@ export function WorkspaceGate({ children }: Props) {
     setPhase('ready')
   }
   useEffect(() => { void load().catch((err) => { setError(err.message); setPhase('failed') }) }, [])
-  const unlock = async (event: FormEvent) => {
-    event.preventDefault(); if (working) return
-    setWorking(true); setError('')
-    try {
-      const response=await fetch('/api/session?flow=master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:masterPassword})})
-      const body=await response.json()
-      if (!response.ok) throw new Error(body.error || 'Não foi possível liberar os dados.')
-      setMasterPassword(''); await load()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao liberar os dados.') }
-    finally { setWorking(false) }
-  }
-
-  const login = async (event: FormEvent) => {
+  const login = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (working) return
+    const credentials = new FormData(event.currentTarget)
+    const username = String(credentials.get('username') || '').trim()
+    const password = String(credentials.get('password') || '')
+    setUsername(username)
     setWorking(true); setError('')
     try {
       const result = await fetch('/api/session', {
@@ -80,8 +67,9 @@ export function WorkspaceGate({ children }: Props) {
       })
       const body = await result.json()
       if (!result.ok) throw new Error(body.error || 'Falha no acesso.')
-      setPassword('')
-      await load()
+      setVisible(false)
+      setMfaStage(body.mfaStage)
+      setPhase('mfa')
     } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao entrar.') }
     finally { setWorking(false) }
   }
@@ -102,47 +90,37 @@ export function WorkspaceGate({ children }: Props) {
   }
   const logout = () => {
     void fetch('/api/session', { method: 'DELETE' }).finally(() => {
-      setLoaded(null); setUser(null); setPhase('login'); setPassword(''); setMasterPassword('')
+      setLoaded(null); setUser(null); setError(''); setPhase('login')
     })
   }
   if (phase === 'ready' && loaded && user) return <>{children(loaded.data, loaded.revision, user, logout)}</>
-  if (phase === 'landing' && user) return <AdminLanding user={user} onProtected={()=>{setError('');setPhase('master')}} onLogout={logout}/>
   return (
     <main className="workspace-access">
       <section className="workspace-access-card">
         <img src={brandMark} alt="Buffet Akela" className="workspace-access-logo"/>
-        <div className="workspace-access-eyebrow"><ShieldCheck size={14}/> GESTÃO SEGURA DO BUFFET</div>
-        {phase === 'loading' && <><h1>Conectando ao banco...</h1><p>Verificando o acesso à plataforma.</p></>}
+        {phase === 'loading' && <><h1>Verificando seu acesso…</h1></>}
         {phase === 'login' && <>
-          <h1>Bem-vindo ao Buffet Akela</h1>
-          <p>Faça login com seu usuário individual para acessar os eventos, recibos e contratos armazenados no Neon.</p>
+          <h1>Entrar no Buffet Akela</h1>
+          <p>Use seu usuário ou e-mail e sua senha. Em seguida, confirme o código do autenticador.</p>
           <form className="workspace-access-form" onSubmit={login}>
             <label htmlFor="admin-username">Usuário ou e-mail</label>
-            <div className="workspace-password"><ShieldCheck size={18}/><input id="admin-username" autoComplete="username" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Seu usuário" /></div>
+            <div className="workspace-password"><ShieldCheck size={18}/><input id="admin-username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}
+              autoFocus required defaultValue={username} maxLength={254} /></div>
             <label htmlFor="admin-password">Senha</label>
             <div className="workspace-password">
-              <Lock size={18}/><input id="admin-password" type={visible ? 'text':'password'}
-                autoComplete="current-password" autoFocus required value={password}
-                onChange={(e) => setPassword(e.target.value)} placeholder="Digite sua senha"/>
+              <Lock size={18}/><input id="admin-password" name="password" type={visible ? 'text':'password'}
+                autoComplete="current-password" required maxLength={256}/>
               <button type="button" onClick={()=>setVisible(!visible)}
                 aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button>
             </div>
-            <button className="btn btn-primary" disabled={working || !password || !username} type="submit">
-              {working ? 'Validando...' : 'Entrar no painel'}<ArrowRight size={17}/>
+            <button className="btn btn-primary" disabled={working} type="submit">
+              {working ? 'Verificando…' : 'Continuar'}<ArrowRight size={17}/>
             </button>
           </form>
         </>}
         {phase === 'mfa' && <MfaAccess initialStage={mfaStage}
           onComplete={()=>{setPhase('loading');void load().catch(e=>{setError(e.message);setPhase('failed')})}}
-          onCancel={logout}/>}
-        {phase === 'master' && <><h1>Dados protegidos</h1>
-          <p>Informe a senha mestra para acessar os dados pessoais e financeiros nesta sessão.</p>
-          <form className="workspace-access-form" onSubmit={e=>void unlock(e)}>
-            <label htmlFor="master-password">Senha mestra</label>
-            <input id="master-password" type="password" autoComplete="off" required value={masterPassword} onChange={e=>setMasterPassword(e.target.value)}/>
-            <button className="btn btn-primary" disabled={working || !masterPassword}>{working?'Validando...':'Liberar dados'}</button>
-            <button type="button" className="btn btn-quiet" onClick={()=>{setMasterPassword('');setError('');setPhase('landing')}}>Voltar ao painel</button>
-          </form></>}
+          onRestart={(message)=>{setError(message);setPhase('login')}} onCancel={logout}/>}
         {phase === 'bootstrap' && <>
           <div className="workspace-intro-icon"><Database size={25}/></div>
           <h1>Preparar armazenamento Neon</h1>
@@ -163,7 +141,7 @@ export function WorkspaceGate({ children }: Props) {
           <button className="btn btn-quiet" onClick={()=>{setPhase('loading');setError('');void load().catch((e)=>{setError(e.message);setPhase('failed')})}}>Tentar novamente</button></>}
         {working && phase === 'bootstrap' && <p className="workspace-activity">Salvando os dados no Neon...</p>}
         {error && <p className="workspace-access-error" role="alert">{error}</p>}
-        <footer><ShieldCheck size={14}/> Acesso restrito · conexão segura com PostgreSQL</footer>
+        <footer><ShieldCheck size={14}/> Acesso protegido por verificação em duas etapas</footer>
       </section>
     </main>
   )

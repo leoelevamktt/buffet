@@ -1,5 +1,5 @@
 import { database } from './_db.js'
-import { requireSensitive } from './_session.js'
+import { requireAdmin } from './_session.js'
 import { decryptWorkspace, encryptWorkspace, workspaceKeyConfigured } from './_workspace-crypto.js'
 
 const keys = ['events', 'clients', 'menus', 'services', 'settings', 'receipts']
@@ -14,7 +14,7 @@ const validate = (data) => {
 }
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
-  if (!(await requireSensitive(req, res))) return
+  if (!(await requireAdmin(req, res))) return
   if (!workspaceKeyConfigured()) return res.status(503).json({error:'Proteção dos dados não configurada.'})
   if (!['GET', 'POST', 'PUT'].includes(req.method)) return res.status(405).json({ error: 'Método não permitido.' })
   try {

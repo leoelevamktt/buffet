@@ -25,13 +25,13 @@ export const safeOrigin = (req) => {
   try { return new URL(origin).host.toLowerCase() === host.toLowerCase() } catch { return false }
 }
 
-export async function createSession(sql, userId, expectedPasswordHash, mfaVersion, masterUntil=null) {
+export async function createSession(sql, userId, expectedPasswordHash, mfaVersion) {
   if (!sessionConfigured()) throw new Error('Segredo de sessão não configurado.')
   const token = randomBytes(32).toString('base64url')
-  const result = await sql.query(`INSERT INTO buffet_sessions(token_hash,user_id,expires_at,mfa_version,mfa_verified_at,master_unlocked_until)
-    SELECT $1,id,now()+interval '12 hours',mfa_version,now(),$5 FROM buffet_users
+  const result = await sql.query(`INSERT INTO buffet_sessions(token_hash,user_id,expires_at,mfa_version,mfa_verified_at)
+    SELECT $1,id,now()+interval '12 hours',mfa_version,now() FROM buffet_users
     WHERE id=$2 AND active=TRUE AND password_hash=$3 AND mfa_version=$4
-      AND mfa_secret IS NOT NULL AND mfa_enabled_at IS NOT NULL`, [hash(token), userId, expectedPasswordHash, mfaVersion, masterUntil])
+      AND mfa_secret IS NOT NULL AND mfa_enabled_at IS NOT NULL`, [hash(token), userId, expectedPasswordHash, mfaVersion])
   return result.rowCount ? token : null
 }
 export const appendCookie = (res, value) => {
@@ -48,21 +48,12 @@ export async function clearSession(req, res) {
 export async function getSession(req) {
   const token = extract(req)
   if (!sessionConfigured() || !mfaConfigured() || !/^[a-zA-Z0-9_-]{43}$/.test(token)) return null
-  const result = await database().query(`SELECT u.id,u.username,u.name,u.email,u.role,u.active,s.master_unlocked_until
+  const result = await database().query(`SELECT u.id,u.username,u.name,u.email,u.role,u.active
     FROM buffet_sessions s JOIN buffet_users u ON u.id=s.user_id
     WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=TRUE
       AND s.mfa_verified_at IS NOT NULL AND s.mfa_version=u.mfa_version
       AND u.mfa_enabled_at IS NOT NULL AND u.mfa_secret IS NOT NULL`,[hash(token)])
   return result.rows[0] || null
-}
-export async function requireSensitive(req,res,role) {
-  const user=await requireAdmin(req,res,role)
-  if (!user) return null
-  if (!user.master_unlocked_until || new Date(user.master_unlocked_until).getTime()<=Date.now()) {
-    res.status(403).json({error:'Informe a senha mestra para acessar os dados.',masterRequired:true})
-    return null
-  }
-  return user
 }
 export async function requireAdmin(req,res,role,audit=true) {
   if (!safeOrigin(req)) {res.status(403).json({error:'Origem não autorizada.'});return null}

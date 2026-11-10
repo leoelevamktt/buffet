@@ -1,10 +1,10 @@
 # Criptografia dos dados do painel
 
-O campo `buffet_workspace.data` é cifrado pela aplicação com AES-256-GCM. `WORKSPACE_ENCRYPTION_KEY` é uma chave aleatória independente da senha mestra, fornecida somente ao servidor. O painel recebe os dados legíveis depois da autenticação e da autorização existentes. Senhas das contas permanecem protegidas por hash; os segredos do autenticador usam outra chave. Os arquivos privados de contratos no Blob e os metadados de acesso ficam fora deste envelope.
+O campo `buffet_workspace.data` é cifrado pela aplicação com AES-256-GCM. `WORKSPACE_ENCRYPTION_KEY` é uma chave aleatória fornecida somente ao servidor. O painel recebe os dados legíveis depois da autenticação em duas etapas. Senhas das contas permanecem protegidas por hash; os segredos do autenticador usam outra chave. Os arquivos privados de contratos no Blob e os metadados de acesso ficam fora deste envelope.
 
 ## Chave e recuperação
 
-Guarde uma cópia da chave em um cofre seguro separado do banco. A Vercel não revela novamente um segredo sensível. Perder a chave impede ler dados e backups cifrados; não é possível recuperá-los com a senha mestra. Nunca inclua a chave em commits, logs, mensagens ou arquivos públicos.
+Guarde uma cópia da chave em um cofre seguro separado do banco. A Vercel não revela novamente um segredo sensível. Perder a chave impede ler dados e backups cifrados. Nunca inclua a chave em commits, logs, mensagens ou arquivos públicos.
 
 Os scripts de recuperação aceitam dados cifrados quando a chave é fornecida pela variável `WORKSPACE_ENCRYPTION_KEY` ou pelo `.env.local` protegido. O backup produzido pela migração conserva a estrutura `tables.buffet_workspace`, compatível com os scripts de recuperação. Backups históricos podem conter conteúdo legível e exigem proteção própria.
 

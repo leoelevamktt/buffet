@@ -8,15 +8,14 @@ import { createHmac } from 'node:crypto'
 import { getTrustedIp } from './_audit.js'
 import { reserveAttempt, securityEvent } from './_security.js'
 import mfaHandler from './_mfa-handler.js'
-import masterHandler from './_master.js'
 import activityHandler from './_activity.js'
 
 const anonymousMessage = 'Usuário ou senha incorretos.'
 export default async function handler(req,res) {
   if (req.query?.flow === 'mfa') return mfaHandler(req,res)
-  if (req.query?.flow === 'master') return masterHandler(req,res)
   if (req.query?.flow === 'activity') return activityHandler(req,res)
   res.setHeader('Cache-Control','no-store')
+  if (req.query?.flow !== undefined) return res.status(404).json({error:'Recarregue a página para continuar.'})
   if (!sessionConfigured() || !mfaConfigured()) return res.status(503).json({error:'Acesso administrativo não configurado.'})
   if (!safeOrigin(req)) return res.status(403).json({error:'Origem não autorizada.'})
   try {
@@ -37,7 +36,7 @@ export default async function handler(req,res) {
     if (req.method!=='POST') return res.status(405).json({error:'Método não permitido.'})
     const id=String(req.body?.username||'').trim().toLowerCase()
     const pass=typeof req.body?.password==='string'?req.body.password:''
-    if (!id || id.length>254 || pass.length>256)
+    if (!id || id.length>254 || !pass || pass.length>256)
       return res.status(400).json({error:'Informe seu usuário e senha.'})
     const sql=database()
     const ipKey='ip:'+getTrustedIp(req).ip

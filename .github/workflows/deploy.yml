@@ -80,10 +80,11 @@ jobs:
             const home = await fetch(base, { cache: 'no-store' })
             const session = await fetch(base + '/api/session', { cache: 'no-store' })
             const workspace = await fetch(base + '/api/workspace', { cache: 'no-store' })
+            const retiredUnlock = await fetch(base + '/api/session?flow=master', { cache: 'no-store' })
             const sessionBody = await session.json()
-            if (home.status !== 200 || session.status !== 200 || !sessionBody.dataProtectionConfigured || workspace.status !== 401) {
+            if (home.status !== 200 || session.status !== 200 || !sessionBody.dataProtectionConfigured || workspace.status !== 401 || retiredUnlock.status !== 404) {
               throw Error('Production smoke check: ' + JSON.stringify({
-                home: home.status, session: session.status, workspace: workspace.status, dataProtectionConfigured: sessionBody.dataProtectionConfigured
+                home: home.status, session: session.status, workspace: workspace.status, retiredUnlock: retiredUnlock.status, dataProtectionConfigured: sessionBody.dataProtectionConfigured
               }))
             }
             console.log('PRODUCTION_SMOKE_PASS')

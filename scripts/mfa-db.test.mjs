@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import * as OTPAuth from 'otpauth'
 
-test('MFA and master authorization in a disposable isolated database schema',{skip:!process.env.SECURITY_TEST_DATABASE_URL,timeout:120000},async()=>{
+test('MFA protects administrative data without a shared password in an isolated schema',{skip:!process.env.SECURITY_TEST_DATABASE_URL,timeout:120000},async()=>{
   process.env.DATABASE_URL=process.env.SECURITY_TEST_DATABASE_URL
   process.env.ADMIN_SESSION_SECRET=randomBytes(32).toString('hex')
   process.env.MFA_ENCRYPTION_KEY=randomBytes(32).toString('hex')
@@ -40,6 +40,10 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     const preauth=cookie(initial,'__Host-akela_preauth');assert.ok(preauth)
     assert.equal(cookie(initial,'__Host-akela_session'),undefined)
     assert.equal((await call(workspace,'GET',{},preauth)).code,401)
+    for (const route of ['contracts','quotes','addenda']) {
+      const {default:documents}=await import(`../api/${route}.js`)
+      for (const method of ['POST','DELETE']) assert.equal((await call(documents,method,{},preauth)).code,401)
+    }
     assert.equal((await call(mfa,'GET',{},preauth)).body.secret,undefined)
     assert.equal((await call(mfa,'POST',{action:'activate',invitation:'x'.repeat(32)},preauth)).code,401)
     const invite=randomBytes(24).toString('base64url')
@@ -50,7 +54,9 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     const enrolled=await call(mfa,'POST',{action:'enroll',code:otp.generate({timestamp:Date.now()-30000})},preauth)
     assert.equal(enrolled.code,200);assert.equal(enrolled.body.recoveryCodes.length,8)
     const oldSession=cookie(enrolled,'__Host-akela_session');assert.ok(oldSession)
-    assert.equal((await call(workspace,'GET',{},oldSession)).code,403)
+    const directAccess=await call(workspace,'GET',{},oldSession)
+    assert.equal(directAccess.code,200)
+    assert.equal(directAccess.body.initialized,false)
     assert.equal((await call(users,'GET',{},oldSession)).code,200)
     assert.equal((await call(activity,'POST',{section:'clients'},oldSession)).code,200)
     const geo=response();await activity({method:'POST',url:'/test',body:{section:'events'},headers:{cookie:oldSession,host:'localhost',origin:'https://localhost','x-vercel-forwarded-for':'192.0.2.10','x-vercel-ip-country':'BR','x-vercel-ip-city':'S%C3%A3o%20Paulo','user-agent':'Test Browser'}},geo)
@@ -76,10 +82,8 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     finally{connection.release()}
     assert.equal((await call(activity,'GET',{},operatorCookie)).code,403)
     assert.equal((await call(activity,'POST',{section:'events'},operatorCookie)).code,200)
-    process.env.MASTER_PASSWORD_HASH=await passwordHash('Master!Temporary2026')
-    assert.equal((await call(master,'POST',{password:'wrong'},oldSession)).code,401)
-    assert.equal((await call(master,'POST',{password:'Master!Temporary2026'},oldSession)).code,200)
-    assert.equal((await call(workspace,'GET',{},oldSession)).code,200)
+    assert.equal((await call(users,'GET',{},operatorCookie)).code,403)
+    assert.equal((await call(master,'POST',{password:'unused'},oldSession)).code,404)
     const originalWorkspace={events:[{name:'Segredo de teste'}],clients:[],menus:[],services:[],settings:{},receipts:[]}
     assert.equal((await call(workspace,'POST',{data:originalWorkspace,revision:0},oldSession)).code,201)
     const savedWorkspace=await pool.query("SELECT data,revision FROM buffet_workspace WHERE id='main'")
@@ -109,6 +113,7 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     const accounts=await call(users,'GET',{},oldSession)
     assert.equal(accounts.code,200);assert.equal(accounts.body.users[0].password_hash,undefined)
     assert.equal(accounts.body.users[0].mfa_secret,undefined)
+    assert.equal((await call(workspace,'GET',{},'__Host-akela_session='+randomBytes(32).toString('base64url'))).code,401)
     const first=await call(session,'POST',{username,password})
     const second=await call(session,'POST',{username,password})
     const a=cookie(first,'__Host-akela_preauth'),b=cookie(second,'__Host-akela_preauth')
@@ -116,7 +121,11 @@ test('MFA and master authorization in a disposable isolated database schema',{sk
     const results=await Promise.all([call(mfa,'POST',{action:'verify',code:current},a),call(mfa,'POST',{action:'verify',code:current},b)])
     assert.deepEqual(results.map(r=>r.code).sort(),[200,401])
     const freshSession=cookie(results.find(r=>r.code===200),'__Host-akela_session')
-    assert.equal((await call(workspace,'GET',{},freshSession)).code,403)
+    assert.deepEqual((await call(workspace,'GET',{},freshSession)).body.data,originalWorkspace)
+    assert.equal((await call(session,'GET',{},freshSession)).body.user.master_unlocked_until,undefined)
+    const finishedChallenge=await call(mfa,'POST',{action:'verify',code:current},a)
+    assert.equal(finishedChallenge.code,401)
+    assert.equal(finishedChallenge.body.restartLogin,true)
     const targetId=randomUUID(),targetPass='Target!Temporary2026',targetHash=await passwordHash(targetPass)
     await pool.query("INSERT INTO buffet_users(id,username,name,role,password_hash) VALUES($1,'target','Target','operador',$2)",[targetId,targetHash])
     const issued=await call(mfa,'POST',{action:'invite',targetId,password,code:otp.generate({timestamp:Date.now()+30000})},freshSession)
