@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import * as OTPAuth from 'otpauth'
+import nodemailer from 'nodemailer'
 
 test('MFA protects administrative data without a shared password in an isolated schema',{skip:!process.env.SECURITY_TEST_DATABASE_URL,timeout:120000},async()=>{
   process.env.DATABASE_URL=process.env.SECURITY_TEST_DATABASE_URL
@@ -157,23 +158,29 @@ test('MFA protects administrative data without a shared password in an isolated 
     assert.equal((await call(workspace,'GET',{},oldSession)).code,401)
     const mailUser=randomUUID(), mailAddress='sample@example.invalid'
     await pool.query("INSERT INTO buffet_users(id,username,name,email,role,password_hash) VALUES($1,'sample-mail','Mail',$2,'operador',$3)",[mailUser,mailAddress,encoded])
-    process.env.ADMIN_EMAIL_API_KEY='test-provider-key'
+    process.env.ADMIN_EMAIL_SMTP_USER='test-smtp-user'
+    process.env.ADMIN_EMAIL_SMTP_KEY='test-smtp-key'
     process.env.ADMIN_EMAIL_FROM='acesso@example.invalid'
-    const nativeFetch=globalThis.fetch, messages=[]
-    let providerStatus=200
-    globalThis.fetch=async(url,options)=>{
-      assert.equal(url,'https://api.brevo.com/v3/smtp/email')
-      assert.equal(options.headers['api-key'],'test-provider-key')
-      messages.push(JSON.parse(options.body))
-      return new Response('{}',{status:providerStatus})
+    const nativeTransport=nodemailer.createTransport, messages=[]
+    let providerRejects=false
+    nodemailer.createTransport=(options)=>{
+      assert.equal(options.host,'smtp-relay.brevo.com')
+      assert.equal(options.port,465)
+      assert.equal(options.secure,true)
+      assert.deepEqual(options.auth,{user:'test-smtp-user',pass:'test-smtp-key'})
+      return {sendMail:async message=>{
+        messages.push(message)
+        if (providerRejects) throw Object.assign(new Error('SMTP request refused'),{responseCode:535})
+        return {accepted:[mailAddress]}
+      }}
     }
     try {
-      providerStatus=403
+      providerRejects=true
       const failedDelivery=await call(session,'POST',{username:mailAddress,password})
       assert.equal(failedDelivery.code,503)
       assert.equal(cookie(failedDelivery,'__Host-akela_preauth'),undefined)
       assert.equal((await pool.query('SELECT 1 FROM buffet_mfa_challenges WHERE user_id=$1',[mailUser])).rowCount,0)
-      providerStatus=200
+      providerRejects=false
       const expired=await call(session,'POST',{username:mailAddress,password})
       await pool.query("UPDATE buffet_mfa_challenges SET expires_at=now()-interval '1 second' WHERE user_id=$1",[mailUser])
       assert.equal((await call(mfa,'POST',{action:'verify_email',code:'123456'},cookie(expired,'__Host-akela_preauth'))).body.restartLogin,true)
@@ -184,9 +191,9 @@ test('MFA protects administrative data without a shared password in an isolated 
       assert.ok(mailChallenge)
       assert.equal(cookie(emailLogin,'__Host-akela_session'),undefined)
       assert.equal((await call(workspace,'GET',{},mailChallenge)).code,401)
-      assert.deepEqual(messages[0].sender,{name:'Buffet Akela',email:'acesso@example.invalid'})
-      assert.deepEqual(messages[0].to,[{email:mailAddress}])
-      const mailCode=messages[0].textContent.match(/\b[0-9]{6}\b/)[0]
+      assert.deepEqual(messages[0].from,{name:'Buffet Akela',address:'acesso@example.invalid'})
+      assert.deepEqual(messages[0].to,[{address:mailAddress}])
+      const mailCode=messages[0].text.match(/\b[0-9]{6}\b/)[0]
       assert.ok(!JSON.stringify(emailLogin.body).includes(mailCode))
       assert.ok(!JSON.stringify((await pool.query('SELECT * FROM buffet_mfa_challenges WHERE user_id=$1',[mailUser])).rows).includes(mailCode))
       assert.equal((await call(mfa,'POST',{action:'verify_email',code:mailCode==='000000'?'999999':'000000'},mailChallenge)).code,401)
@@ -210,8 +217,9 @@ test('MFA protects administrative data without a shared password in an isolated 
       assert.equal(messages.length,1)
       assert.equal((await call(mfa,'POST',{action:'verify_email',code:mailCode},cookie(afterEnrollment,'__Host-akela_preauth'))).code,400)
     } finally {
-      globalThis.fetch=nativeFetch
-      delete process.env.ADMIN_EMAIL_API_KEY
+      nodemailer.createTransport=nativeTransport
+      delete process.env.ADMIN_EMAIL_SMTP_USER
+      delete process.env.ADMIN_EMAIL_SMTP_KEY
       delete process.env.ADMIN_EMAIL_FROM
     }
     const audit=await pool.query('SELECT details FROM buffet_security_events')
