@@ -77,8 +77,10 @@ export default async function handler(req,res) {
         const changed=await client.query(`UPDATE buffet_users SET name=$2,email=$3,role=$4,active=$5,
           password_hash=COALESCE($6,password_hash),updated_at=now()
           WHERE id=$1 RETURNING `+fields,[id,name,email,role,active,encrypted])
-        if (encrypted||previous.role!==role||previous.active!==active)
+        if (encrypted||previous.role!==role||previous.active!==active||previous.email!==email) {
           await client.query('DELETE FROM buffet_sessions WHERE user_id=$1',[id])
+          await client.query('DELETE FROM buffet_mfa_challenges WHERE user_id=$1',[id])
+        }
         await client.query('COMMIT')
         return res.status(200).json({user:changed.rows[0]})
       } catch (error) {

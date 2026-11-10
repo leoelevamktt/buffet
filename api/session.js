@@ -4,6 +4,7 @@ import { beginMfa, pendingMfa, challengeHash, clearChallengeCookie } from './_mf
 import { mfaConfigured } from './_mfa-crypto.js'
 import { workspaceKeyConfigured, workspaceKeyFingerprint } from './_workspace-crypto.js'
 import { passwordVerify } from './_password.js'
+import { emailLoginConfigured } from './_login-email.js'
 import { createHmac } from 'node:crypto'
 import { getTrustedIp } from './_audit.js'
 import { reserveAttempt, securityEvent } from './_security.js'
@@ -22,7 +23,7 @@ export default async function handler(req,res) {
     if (req.method==='GET') {
       const user=await getSession(req)
       const pending = user ? null : await pendingMfa(req)
-      return res.status(200).json({authenticated:Boolean(user),user,mfaStage:pending?.stage || null,dataProtectionConfigured:workspaceKeyConfigured(),dataProtectionFingerprint:workspaceKeyFingerprint()})
+      return res.status(200).json({authenticated:Boolean(user),user,mfaStage:pending?.stage || null,emailLoginConfigured:emailLoginConfigured(),dataProtectionConfigured:workspaceKeyConfigured(),dataProtectionFingerprint:workspaceKeyFingerprint()})
     }
     if (req.method==='DELETE') {
       const user=await getSession(req)
@@ -45,7 +46,7 @@ export default async function handler(req,res) {
       res.setHeader('Retry-After','900')
       return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'})
     }
-    const found=await sql.query(`SELECT id,username,name,email,role,password_hash FROM buffet_users
+    const found=await sql.query(`SELECT id,email,password_hash,mfa_version,(mfa_secret IS NOT NULL AND mfa_enabled_at IS NOT NULL) AS "appEnabled" FROM buffet_users
       WHERE (username=$1 OR email=$1) AND active=TRUE LIMIT 1`,[id])
     const user=found.rows[0]
     const accountKey='account:'+(user?.id||createHmac('sha256',process.env.ADMIN_SESSION_SECRET).update(id).digest('hex'))
@@ -60,6 +61,10 @@ export default async function handler(req,res) {
       return res.status(401).json({error:anonymousMessage})
     }
     const stage=await beginMfa(res,user)
+    if (stage==='delivery_failed') {
+      await securityEvent(sql,req,'login_email_delivery_failed',user.id)
+      return res.status(503).json({error:'Não foi possível enviar o código. Tente novamente em instantes.'})
+    }
     if (!stage) return res.status(401).json({error:anonymousMessage})
     await securityEvent(sql,req,'login_password_verified',user.id)
     return res.status(200).json({authenticated:false,mfaStage:stage})

@@ -34,6 +34,7 @@ test('MFA protects administrative data without a shared password in an isolated 
     }
     pool.query=async(text,values)=>{const db=await connect();try{await db.query('BEGIN');await db.query(`SET LOCAL search_path TO ${schema},pg_catalog`);const result=await db.query(text,values);await db.query('COMMIT');return result}catch(error){await db.query('ROLLBACK');throw error}finally{db.release()}}
     await pool.query(await readFile(new URL('./neon-schema.sql',import.meta.url),'utf8'))
+    await pool.query(await readFile(new URL('./email-login-schema.sql',import.meta.url),'utf8'))
     await pool.query("INSERT INTO buffet_users(id,username,name,role,password_hash) VALUES($1,$2,'Sample','admin',$3)",[userId,username,encoded])
     const initial=await call(session,'POST',{username,password})
     assert.equal(initial.code,200);assert.equal(initial.body.authenticated,false);assert.equal(initial.body.mfaStage,'invite')
@@ -154,6 +155,63 @@ test('MFA protects administrative data without a shared password in an isolated 
     const recoveryResults=await Promise.all([call(mfa,'POST',{action:'enroll',code:codeC},c),call(mfa,'POST',{action:'enroll',code:codeD},d)])
     assert.deepEqual(recoveryResults.map(r=>r.code).sort(),[200,401])
     assert.equal((await call(workspace,'GET',{},oldSession)).code,401)
+    const mailUser=randomUUID(), mailAddress='sample@example.invalid'
+    await pool.query("INSERT INTO buffet_users(id,username,name,email,role,password_hash) VALUES($1,'sample-mail','Mail',$2,'operador',$3)",[mailUser,mailAddress,encoded])
+    process.env.ADMIN_EMAIL_API_KEY='test-provider-key'
+    process.env.ADMIN_EMAIL_FROM='Buffet Akela <acesso@example.invalid>'
+    const nativeFetch=globalThis.fetch, messages=[]
+    let providerStatus=200
+    globalThis.fetch=async(url,options)=>{
+      assert.equal(url,'https://api.resend.com/emails')
+      messages.push(JSON.parse(options.body))
+      return new Response('{}',{status:providerStatus})
+    }
+    try {
+      providerStatus=403
+      const failedDelivery=await call(session,'POST',{username:mailAddress,password})
+      assert.equal(failedDelivery.code,503)
+      assert.equal(cookie(failedDelivery,'__Host-akela_preauth'),undefined)
+      assert.equal((await pool.query('SELECT 1 FROM buffet_mfa_challenges WHERE user_id=$1',[mailUser])).rowCount,0)
+      providerStatus=200
+      const expired=await call(session,'POST',{username:mailAddress,password})
+      await pool.query("UPDATE buffet_mfa_challenges SET expires_at=now()-interval '1 second' WHERE user_id=$1",[mailUser])
+      assert.equal((await call(mfa,'POST',{action:'verify_email',code:'123456'},cookie(expired,'__Host-akela_preauth'))).body.restartLogin,true)
+      messages.length=0
+      const emailLogin=await call(session,'POST',{username:mailAddress,password})
+      assert.equal(emailLogin.body.mfaStage,'email')
+      const mailChallenge=cookie(emailLogin,'__Host-akela_preauth')
+      assert.ok(mailChallenge)
+      assert.equal(cookie(emailLogin,'__Host-akela_session'),undefined)
+      assert.equal((await call(workspace,'GET',{},mailChallenge)).code,401)
+      assert.deepEqual(messages[0].to,[mailAddress])
+      const mailCode=messages[0].text.match(/\b[0-9]{6}\b/)[0]
+      assert.ok(!JSON.stringify(emailLogin.body).includes(mailCode))
+      assert.ok(!JSON.stringify((await pool.query('SELECT * FROM buffet_mfa_challenges WHERE user_id=$1',[mailUser])).rows).includes(mailCode))
+      assert.equal((await call(mfa,'POST',{action:'verify_email',code:mailCode==='000000'?'999999':'000000'},mailChallenge)).code,401)
+      const mailAccepted=await Promise.all([call(mfa,'POST',{action:'verify_email',code:mailCode},mailChallenge),call(mfa,'POST',{action:'verify_email',code:mailCode},mailChallenge)])
+      assert.deepEqual(mailAccepted.map(r=>r.code).sort(),[200,401])
+      const mailSession=cookie(mailAccepted.find(r=>r.code===200),'__Host-akela_session')
+      assert.equal((await call(workspace,'GET',{},mailSession)).code,200)
+      assert.equal((await call(mfa,'POST',{action:'start_profile',password},mailChallenge)).code,401)
+      assert.equal((await call(mfa,'POST',{action:'start_profile',password:'wrong'},mailSession)).code,401)
+      const startProfile=await call(mfa,'POST',{action:'start_profile',password},mailSession)
+      const profileChallenge=cookie(startProfile,'__Host-akela_preauth')
+      assert.match(startProfile.body.qrImage,/^data:image\/png/)
+      assert.equal((await call(mfa,'GET',{},profileChallenge)).code,401)
+      const mailOtp=new OTPAuth.TOTP({secret:startProfile.body.secret})
+      const profileResult=await call(mfa,'POST',{action:'enroll',code:mailOtp.generate()},profileChallenge+'; '+mailSession)
+      assert.equal(profileResult.code,200)
+      assert.equal(profileResult.body.recoveryCodes.length,8)
+      assert.equal((await call(workspace,'GET',{},mailSession)).code,401)
+      const afterEnrollment=await call(session,'POST',{username:mailAddress,password})
+      assert.equal(afterEnrollment.body.mfaStage,'verify')
+      assert.equal(messages.length,1)
+      assert.equal((await call(mfa,'POST',{action:'verify_email',code:mailCode},cookie(afterEnrollment,'__Host-akela_preauth'))).code,400)
+    } finally {
+      globalThis.fetch=nativeFetch
+      delete process.env.ADMIN_EMAIL_API_KEY
+      delete process.env.ADMIN_EMAIL_FROM
+    }
     const audit=await pool.query('SELECT details FROM buffet_security_events')
     assert.ok(!JSON.stringify(audit.rows).includes(invite));assert.ok(!JSON.stringify(audit.rows).includes(password))
   } finally {

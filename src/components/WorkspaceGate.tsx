@@ -101,7 +101,7 @@ export function WorkspaceGate({ children }: Props) {
         {phase === 'loading' && <><h1>Verificando seu acesso…</h1></>}
         {phase === 'login' && <>
           <h1>Entrar no Buffet Akela</h1>
-          <p>Use seu usuário ou e-mail e sua senha. Em seguida, confirme o código do autenticador.</p>
+          <p>Use seu usuário ou e-mail e sua senha. Em seguida, confirme seu código de acesso.</p>
           <form className="workspace-access-form" onSubmit={login}>
             <label htmlFor="admin-username">Usuário ou e-mail</label>
             <div className="workspace-password"><ShieldCheck size={18}/><input id="admin-username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}

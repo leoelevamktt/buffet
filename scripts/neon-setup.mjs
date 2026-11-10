@@ -15,6 +15,7 @@ try {
   await db.query('BEGIN')
   await db.query('SELECT pg_advisory_xact_lock(398522104)')
   for (const sql of ddl.split(';').map((s)=>s.trim()).filter(Boolean)) await db.query(sql)
+  await db.query(fs.readFileSync('scripts/email-login-schema.sql','utf8'))
   const users=await db.query('SELECT count(*)::integer AS count FROM buffet_users')
   if (users.rows[0].count===0) {
     const admin=read('ADMIN_PASSWORD')

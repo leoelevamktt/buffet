@@ -6,8 +6,16 @@
 - Em produção, a sessão usa cookie `__Host-akela_session`, `Secure`, `HttpOnly` e `SameSite=Strict`, sem atributo `Domain`.
 - A emissão da sessão bloqueia a linha da conta e confirma novamente seu hash de senha e estado ativo. Troca de senha e emissão concorrentes não deixam uma sessão antiga válida.
 - Login tem orçamento atômico por IP e por conta. Usuário e e-mail da mesma conta compartilham o limite. O bloqueio temporário dura 15 minutos e tentativas durante o bloqueio não o prolongam.
-- Mudanças de senha também limitam tentativas. Alterações de senha, perfil ou estado da conta revogam suas sessões.
+- Mudanças de senha também limitam tentativas. Alterações de senha, e-mail, perfil ou estado da conta revogam suas sessões.
 - Requisições administrativas autenticadas e eventos de autenticação são registrados em `buffet_security_events`, sem senhas, tokens, conteúdo dos contratos ou dados dos clientes.
+
+## Código de acesso por e-mail
+
+Configure `ADMIN_EMAIL_API_KEY` como segredo de produção e `ADMIN_EMAIL_FROM` com um remetente de domínio verificado no Resend. Depois publique novamente e confira `emailLoginConfigured` em `GET /api/session`. Essa configuração é exclusiva do login administrativo. [Configuração de domínios no Resend](https://resend.com/docs/dashboard/domains/introduction).
+
+Com o envio configurado, as contas com e-mail cadastrado e sem aplicativo ativo confirmam a senha com um código por e-mail. O código vale por cinco minutos, é de uso único e fica vinculado ao navegador e à conta. Em **Minha conta**, o usuário pode configurar o aplicativo autenticador. A confirmação da configuração troca o método dos próximos logins, revoga as outras sessões e gera os códigos de recuperação.
+
+Contas com aplicativo já ativo continuam usando o aplicativo. Para transferir uma conta existente ao e-mail, confirme o endereço com o responsável e valide o envio antes de remover o fator anterior e revogar suas sessões.
 
 ## Conteúdo e documentos
 
@@ -19,7 +27,7 @@
 
 ## Banco e implantação
 
-Antes de publicar esta versão, aplique `scripts/neon-schema.sql` com uma credencial de manutenção autorizada. A migração adiciona a tabela de registros de segurança e seu índice, sem recriar nem sobrescrever os cadastros.
+Antes de publicar em um banco existente, aplique `scripts/email-login-schema.sql` após o esquema base `scripts/neon-schema.sql`, com uma credencial de manutenção. A migração adiciona colunas e valida as restrições dos desafios de login sem reescrever os cadastros.
 
 Em produção, `DATABASE_URL` deve usar um papel exclusivo da aplicação, sem propriedade dos objetos ou permissão de criar objetos no esquema público. Ele precisa de:
 
@@ -41,6 +49,6 @@ npm run build
 node --test scripts/audit-evidence.test.mjs scripts/receipts.test.mjs scripts/security.test.mjs
 ```
 
-O teste de HTML usa `google-chrome` (ou `CHROME_BIN`). Para testar a autenticação contra PostgreSQL, forneça `SECURITY_TEST_DATABASE_URL` com uma credencial de teste autorizada e execute `node --test scripts/security-db.test.mjs`. O teste cria um esquema privado com nome aleatório, usa conexões reais concorrentes e elimina o esquema ao finalizar; não usa as tabelas públicas da aplicação.
+O teste de HTML usa `google-chrome` (ou `CHROME_BIN`). Para testar a autenticação contra PostgreSQL, forneça `SECURITY_TEST_DATABASE_URL` com uma credencial de teste autorizada e execute `node --test scripts/mfa-db.test.mjs`. O teste cria um esquema privado com nome aleatório, usa conexões reais concorrentes e elimina o esquema ao finalizar; não usa as tabelas públicas da aplicação.
 
 Referências: [autenticação OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [política de segurança de conteúdo OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html).
