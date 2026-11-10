@@ -11,7 +11,7 @@
 
 ## Código de acesso por e-mail
 
-Configure `ADMIN_EMAIL_API_KEY` como segredo de produção e `ADMIN_EMAIL_FROM` com um remetente de domínio verificado no Resend. Depois publique novamente e confira `emailLoginConfigured` em `GET /api/session`. Essa configuração é exclusiva do login administrativo. [Configuração de domínios no Resend](https://resend.com/docs/dashboard/domains/introduction).
+Configure `ADMIN_EMAIL_API_KEY` como segredo de produção e `ADMIN_EMAIL_FROM` com o endereço do remetente verificado no Brevo. Se o bloqueio por IP estiver ativo, autorize os IPs de saída do ambiente de produção. Depois publique novamente e confira `emailLoginConfigured` em `GET /api/session`. Essa configuração é exclusiva do login administrativo. [Remetentes e domínios no Brevo](https://developers.brevo.com/docs/getting-started-with-senders-and-domains).
 
 Com o envio configurado, as contas com e-mail cadastrado e sem aplicativo ativo confirmam a senha com um código por e-mail. O código vale por cinco minutos, é de uso único e fica vinculado ao navegador e à conta. Em **Minha conta**, o usuário pode configurar o aplicativo autenticador. A confirmação da configuração troca o método dos próximos logins, revoga as outras sessões e gera os códigos de recuperação.
 

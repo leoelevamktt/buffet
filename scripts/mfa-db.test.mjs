@@ -158,11 +158,12 @@ test('MFA protects administrative data without a shared password in an isolated 
     const mailUser=randomUUID(), mailAddress='sample@example.invalid'
     await pool.query("INSERT INTO buffet_users(id,username,name,email,role,password_hash) VALUES($1,'sample-mail','Mail',$2,'operador',$3)",[mailUser,mailAddress,encoded])
     process.env.ADMIN_EMAIL_API_KEY='test-provider-key'
-    process.env.ADMIN_EMAIL_FROM='Buffet Akela <acesso@example.invalid>'
+    process.env.ADMIN_EMAIL_FROM='acesso@example.invalid'
     const nativeFetch=globalThis.fetch, messages=[]
     let providerStatus=200
     globalThis.fetch=async(url,options)=>{
-      assert.equal(url,'https://api.resend.com/emails')
+      assert.equal(url,'https://api.brevo.com/v3/smtp/email')
+      assert.equal(options.headers['api-key'],'test-provider-key')
       messages.push(JSON.parse(options.body))
       return new Response('{}',{status:providerStatus})
     }
@@ -183,8 +184,9 @@ test('MFA protects administrative data without a shared password in an isolated 
       assert.ok(mailChallenge)
       assert.equal(cookie(emailLogin,'__Host-akela_session'),undefined)
       assert.equal((await call(workspace,'GET',{},mailChallenge)).code,401)
-      assert.deepEqual(messages[0].to,[mailAddress])
-      const mailCode=messages[0].text.match(/\b[0-9]{6}\b/)[0]
+      assert.deepEqual(messages[0].sender,{name:'Buffet Akela',email:'acesso@example.invalid'})
+      assert.deepEqual(messages[0].to,[{email:mailAddress}])
+      const mailCode=messages[0].textContent.match(/\b[0-9]{6}\b/)[0]
       assert.ok(!JSON.stringify(emailLogin.body).includes(mailCode))
       assert.ok(!JSON.stringify((await pool.query('SELECT * FROM buffet_mfa_challenges WHERE user_id=$1',[mailUser])).rows).includes(mailCode))
       assert.equal((await call(mfa,'POST',{action:'verify_email',code:mailCode==='000000'?'999999':'000000'},mailChallenge)).code,401)
